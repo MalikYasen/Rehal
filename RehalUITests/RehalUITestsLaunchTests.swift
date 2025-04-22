@@ -1,13 +1,13 @@
 //
-//  RehalltestUITestsLaunchTests.swift
-//  RehalltestUITests
+//  RehalUITestsLaunchTests.swift
+//  RehalUITests
 //
-//  Created by Malik Yaseen on 12/04/2025.
+//  Created by Malik Yaseen on 16/04/2025.
 //
 
 import XCTest
 
-final class RehalltestUITestsLaunchTests: XCTestCase {
+final class RehalUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
@@ -17,6 +17,7 @@ final class RehalltestUITestsLaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
         app.launch()
