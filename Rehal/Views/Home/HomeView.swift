@@ -4,6 +4,8 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var selectedFilter: FilterOption = .topRated
     @State private var selectedCategory: Category? = nil
+    @EnvironmentObject var attractionViewModel: AttractionViewModel
+    @EnvironmentObject var authViewModel: AuthViewModel
     
     enum FilterOption: String, CaseIterable, Identifiable {
         case topRated = "Top Rated"
@@ -107,8 +109,14 @@ struct HomeView: View {
                                     action: {
                                         if selectedCategory == category {
                                             selectedCategory = nil
+                                            Task {
+                                                await attractionViewModel.fetchAttractions()
+                                            }
                                         } else {
                                             selectedCategory = category
+                                            Task {
+                                                await attractionViewModel.fetchAttractions(category: category.rawValue)
+                                            }
                                         }
                                     }
                                 )
@@ -124,125 +132,44 @@ struct HomeView: View {
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    // Sample attractions - in a real app, you would fetch these from a database
-                    ForEach(0..<5) { _ in
-                        AttractionCard()
+                    if attractionViewModel.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding()
+                    } else if let error = attractionViewModel.error {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .padding()
+                    } else if attractionViewModel.attractions.isEmpty {
+                        Text("No attractions found")
+                            .foregroundColor(.gray)
+                            .padding()
+                    } else {
+                        // Filter attractions based on search text
+                        let filteredAttractions = searchText.isEmpty ?
+                            attractionViewModel.attractions :
+                            attractionViewModel.attractions.filter {
+                                $0.name.localizedCaseInsensitiveContains(searchText) ||
+                                $0.category.localizedCaseInsensitiveContains(searchText) ||
+                                ($0.subcategory ?? "").localizedCaseInsensitiveContains(searchText)
+                            }
+                        
+                        ForEach(filteredAttractions) { attraction in
+                            AttractionCard(attraction: attraction)
+                        }
                     }
                 }
             }
             .padding(.vertical)
-        }
-    }
-}
-
-// Filter button component
-struct FilterButton: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 16)
-                .background(isSelected ? Color.purple.opacity(0.2) : Color(.systemGray6))
-                .foregroundColor(isSelected ? .purple : .primary)
-                .cornerRadius(20)
-        }
-    }
-}
-
-// Category button component
-struct CategoryButton: View {
-    let category: HomeView.Category
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? Color.purple.opacity(0.2) : Color(.systemGray6))
-                        .frame(width: 70, height: 70)
+            .onAppear {
+                Task {
+                    await attractionViewModel.fetchAttractions()
                     
-                    Image(systemName: category.icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(isSelected ? .purple : .primary)
-                }
-                
-                Text(category.rawValue)
-                    .font(.caption)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundColor(isSelected ? .purple : .primary)
-                    .multilineTextAlignment(.center)
-                    .frame(width: 80)
-            }
-        }
-    }
-}
-
-// Attraction card with navigation to detail view
-struct AttractionCard: View {
-    // This would be a real attraction in your final app
-    let attraction = Attraction.sample
-    
-    var body: some View {
-        NavigationLink(destination: AttractionDetailView(attraction: attraction)) {
-            VStack(alignment: .leading) {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(height: 180)
-                    .cornerRadius(12)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .font(.largeTitle)
-                            .foregroundColor(.gray)
-                    )
-                
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(attraction.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    HStack {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
-                        Text(String(format: "%.1f", attraction.rating))
-                            .foregroundColor(.primary)
-                        Text("(\(attraction.reviewCount) reviews)")
-                            .foregroundColor(.gray)
-                            .font(.caption)
-                        Spacer()
-                        Text("2.5 km")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                    if let userId = authViewModel.session?.user.id {
+                        await attractionViewModel.fetchFavorites(for: userId)
                     }
-                    
-                    Text("\(attraction.category) • \(attraction.subcategory)")
-                        .font(.caption)
-                        .foregroundColor(.gray)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 10)
             }
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
-        }
-        .buttonStyle(PlainButtonStyle())
-        .padding(.horizontal)
-        .padding(.bottom, 5)
-    }
-}
-
-struct HomeView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            HomeView()
         }
     }
 }

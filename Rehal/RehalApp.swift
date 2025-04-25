@@ -3,28 +3,36 @@ import Supabase
 
 @main
 struct RehalApp: App {
-    // Initialize Supabase client with your actual project URL and anon key
+    // Initialize Supabase client with your project URL and anon key
     private let supabaseClient = SupabaseClient(
         supabaseURL: URL(string: "https://vulhxauybqrvunqkazty.supabase.co")!,
-        supabaseKey: "your-actual-anon-key-here"
+        supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1bGh4YXV5YnFydnVucWthenR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ0NjY3MDQsImV4cCI6MjA2MDA0MjcwNH0.kj3L0XCFb_GnJtXAojhjD2cOvm3T6mYcXRgF5hLDrXs"
     )
     
-    // Create the AuthViewModel
+    // Create the ViewModels
     @StateObject private var authViewModel: AuthViewModel
+    @StateObject private var attractionViewModel: AttractionViewModel
+    @StateObject private var reviewViewModel: ReviewViewModel
     
-    // Use init() to properly initialize the StateObject
+    // Use init() to properly initialize the StateObjects
     init() {
-        // Create the AuthViewModel with the already initialized supabaseClient
-        let viewModel = AuthViewModel(supabase: supabaseClient)
+        // Create the ViewModels with the initialized supabaseClient
+        let authVM = AuthViewModel(supabase: supabaseClient)
+        let attractionVM = AttractionViewModel(supabase: supabaseClient)
+        let reviewVM = ReviewViewModel(supabase: supabaseClient)
         
-        // Initialize the @StateObject using _authViewModel
-        _authViewModel = StateObject(wrappedValue: viewModel)
+        // Initialize the @StateObjects
+        _authViewModel = StateObject(wrappedValue: authVM)
+        _attractionViewModel = StateObject(wrappedValue: attractionVM)
+        _reviewViewModel = StateObject(wrappedValue: reviewVM)
     }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authViewModel)
+                .environmentObject(attractionViewModel)
+                .environmentObject(reviewViewModel)
         }
     }
 }
