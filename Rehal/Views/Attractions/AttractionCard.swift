@@ -13,36 +13,36 @@ struct AttractionCard: View {
                     case .empty:
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(1.0, contentMode: .fit)
+                            .aspectRatio(16/9, contentMode: .fit)
                             .overlay(
                                 ProgressView()
                             )
                     case .success(let image):
                         image
                             .resizable()
-                            .aspectRatio(contentMode: .fill) // Changed from .cover to .fill
-                            .frame(height: 140)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(minHeight: 120, maxHeight: 160)
                             .clipped()
                     case .failure:
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(1.0, contentMode: .fit)
+                            .aspectRatio(16/9, contentMode: .fit)
                             .overlay(
                                 Image(systemName: "photo")
-                                    .font(.largeTitle)
+                                    .font(.title)
                                     .foregroundColor(.gray)
                             )
                     @unknown default:
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(1.0, contentMode: .fit)
+                            .aspectRatio(16/9, contentMode: .fit)
                     }
                 }
                 .cornerRadius(12, corners: [.topLeft, .topRight])
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.3))
-                    .frame(height: 140)
+                    .aspectRatio(16/9, contentMode: .fit)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.title)
@@ -52,7 +52,7 @@ struct AttractionCard: View {
             }
             
             // Info
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(attraction.name)
                     .font(.headline)
                     .lineLimit(1)
@@ -66,6 +66,8 @@ struct AttractionCard: View {
                     .foregroundColor(getCategoryColor(for: attraction))
                     .cornerRadius(4)
                 
+                Spacer(minLength: 2)
+                
                 // Rating
                 HStack(spacing: 4) {
                     Image(systemName: "star.fill")
@@ -77,7 +79,7 @@ struct AttractionCard: View {
                         .foregroundColor(.primary)
                 }
             }
-            .padding(10)
+            .padding(12)
         }
         .background(Color(.systemBackground))
         .cornerRadius(12)

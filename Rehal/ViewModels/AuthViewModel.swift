@@ -6,7 +6,8 @@ class AuthViewModel: ObservableObject {
     @Published var session: Session?
     @Published var isLoading = false
     @Published var error: String?
-    private let supabase: SupabaseClient
+    
+    let supabase: SupabaseClient
     
     var isAuthenticated: Bool {
         session != nil
@@ -129,5 +130,27 @@ class AuthViewModel: ObservableObject {
     
     var email: String {
         session?.user.email ?? "No email"
+    }
+    // Expose method for changing password
+    func updatePassword(newPassword: String) async throws {
+        // Create a UserAttributes object with the password
+        let attributes = UserAttributes(password: newPassword)
+        
+        // Update the user with proper syntax
+        try await supabase.auth.update(user: attributes)
+    }
+    
+    // Method to verify current password by attempting to sign in
+    func verifyCurrentPassword(email: String, currentPassword: String) async throws -> Bool {
+        do {
+            // Try to sign in with current credentials
+            _ = try await supabase.auth.signIn(
+                email: email,
+                password: currentPassword
+            )
+            return true
+        } catch {
+            throw error
+        }
     }
 }

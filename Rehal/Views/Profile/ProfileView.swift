@@ -7,7 +7,7 @@ struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var themeManager: ThemeManager
     
-    // Define the custom purple color (same as login page)
+    // Define the custom purple color
     let logoPurple = Color(
         red: 121 / 255.0,
         green: 65 / 255.0,
@@ -16,200 +16,205 @@ struct ProfileView: View {
     )
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            Text("Profile")
-                .font(.title)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(logoPurple)
-            
-            // Profile info section
-            HStack(spacing: 15) {
-                // Profile image
-                Image(systemName: "person.circle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 60, height: 60)
-                    .clipShape(Circle())
-                    .padding(.leading)
-                
-                VStack(alignment: .leading) {
-                    // Use the display name from Supabase
-                    Text(authViewModel.displayName)
-                        .font(.headline)
-                    
-                    // Use the email from Supabase
-                    Text(authViewModel.email)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    // Action for edit profile
-                }) {
-                    HStack {
-                        Text("Edit Profile")
-                            .font(.subheadline)
-                        
-                        Image(systemName: "chevron.right")
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-                    )
-                }
-                .padding(.trailing)
-            }
-            .padding(.vertical)
-            
-            // Preferences section
+        NavigationView {
             VStack(spacing: 0) {
-                Text("PREFERENCES")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                // Header
+                Text("Profile")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(logoPurple)
                 
-                // Notifications row
-                HStack {
-                    Image(systemName: "bell.fill")
-                        .frame(width: 30)
+                ScrollView {
+                    // Profile info section
+                    HStack(spacing: 15) {
+                        // Profile image
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 60, height: 60)
+                            .clipShape(Circle())
+                            .padding(.leading)
+                        
+                        VStack(alignment: .leading) {
+                            // Use the display name from Supabase
+                            Text(authViewModel.displayName)
+                                .font(.headline)
+                            
+                            // Use the email from Supabase
+                            Text(authViewModel.email)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        NavigationLink(destination: EditProfileView()) {
+                            HStack {
+                                Text("Edit Profile")
+                                    .font(.subheadline)
+                                
+                                Image(systemName: "chevron.right")
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                            )
+                        }
+                        .padding(.trailing)
+                    }
+                    .padding(.vertical)
                     
-                    Text("Notifications")
-                        .font(.body)
-                    
-                    Spacer()
-                    
-                    Toggle("", isOn: $notificationsEnabled)
-                        .labelsHidden()
-                }
-                .padding()
-                .background(Color.white)
-                
-                Divider()
-                
-                // Theme/Appearance row
-                NavigationLink(destination: ThemeSettingsView()) {
-                    HStack {
-                        Image(systemName: "moon.fill")
-                            .frame(width: 30)
-                        
-                        Text("Appearance")
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        Text(themeManager.colorSchemePreference.displayName)
+                    // Preferences section
+                    VStack(spacing: 0) {
+                        Text("PREFERENCES")
+                            .font(.caption)
                             .foregroundColor(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
                         
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
+                        // Notifications row
+                        HStack {
+                            Image(systemName: "bell.fill")
+                                .frame(width: 30)
+                            
+                            Text("Notifications")
+                                .font(.body)
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: $notificationsEnabled)
+                                .labelsHidden()
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        
+                        Divider()
+                        
+                        // Theme/Appearance row
+                        NavigationLink(destination: ThemeSettingsView()) {
+                            HStack {
+                                Image(systemName: "moon.fill")
+                                    .frame(width: 30)
+                                
+                                Text("Appearance")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Text(themeManager.colorSchemePreference.displayName)
+                                    .foregroundColor(.gray)
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color(.systemBackground))
+                        }
+                        
+                        Divider()
+                        
+                        // Privacy row
+                        NavigationLink(destination: PrivacyView()) {
+                            HStack {
+                                Image(systemName: "lock.fill")
+                                    .frame(width: 30)
+                                
+                                Text("Privacy")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color(.systemBackground))
+                        }
+                        
+                        Divider()
+                        
+                        // Information row
+                        NavigationLink(destination: InformationView()) {
+                            HStack {
+                                Image(systemName: "info.circle.fill")
+                                    .frame(width: 30)
+                                
+                                Text("Information")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color(.systemBackground))
+                        }
+                        
+                        Divider()
+                        
+                        // Logout row
+                        Button(action: {
+                            showingLogoutAlert = true
+                        }) {
+                            HStack {
+                                Image(systemName: "arrow.right.square")
+                                    .frame(width: 30)
+                                
+                                Text("Logout")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .background(Color(.systemBackground))
+                        }
                     }
-                    .padding()
-                    .background(Color(.systemBackground))
-                }
-                
-                Divider()
-                
-                // Privacy row
-                Button(action: {
-                    // Action for privacy
-                }) {
-                    HStack {
-                        Image(systemName: "lock.fill")
-                            .frame(width: 30)
-                        
-                        Text("Privacy")
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
-                }
-                
-                Divider()
-                
-                // Information row
-                Button(action: {
-                    // Action for information
-                }) {
-                    HStack {
-                        Image(systemName: "info.circle.fill")
-                            .frame(width: 30)
-                        
-                        Text("Information")
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
-                }
-                
-                Divider()
-                
-                // Logout row
-                Button(action: {
-                    showingLogoutAlert = true
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.right.square")
-                            .frame(width: 30)
-                        
-                        Text("Logout")
-                            .font(.body)
-                            .foregroundColor(.primary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
+                    .background(Color(UIColor.systemGroupedBackground))
                 }
             }
+            .edgesIgnoringSafeArea(.top) // Only ignore top safe area for the header
             .background(Color(UIColor.systemGroupedBackground))
-            
-            Spacer()
-        }
-        .edgesIgnoringSafeArea(.top) // Only ignore top safe area
-        .alert(isPresented: $showingLogoutAlert) {
-            Alert(
-                title: Text("Logout"),
-                message: Text("Are you sure you want to logout?"),
-                primaryButton: .destructive(Text("Logout")) {
-                    Task {
-                        await authViewModel.signOut()
-                    }
-                },
-                secondaryButton: .cancel()
-            )
+            .alert(isPresented: $showingLogoutAlert) {
+                Alert(
+                    title: Text("Logout"),
+                    message: Text("Are you sure you want to logout?"),
+                    primaryButton: .destructive(Text("Logout")) {
+                        Task {
+                            await authViewModel.signOut()
+                        }
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
         }
     }
 }
 
 struct ThemeSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var themeManager: ThemeManager
+    
+    let logoPurple = Color(
+        red: 121 / 255.0,
+        green: 65 / 255.0,
+        blue: 234 / 255.0,
+        opacity: 1.0
+    )
     
     var body: some View {
         List {
@@ -224,12 +229,22 @@ struct ThemeSettingsView: View {
                         
                         if themeManager.colorSchemePreference == preference {
                             Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
+                                .foregroundColor(logoPurple)
                         }
                     }
                 }
             }
         }
         .navigationTitle("Appearance")
+        .navigationBarBackButtonHidden(true)
+        .navigationBarItems(leading: Button(action: {
+            dismiss()
+        }) {
+            HStack {
+                Image(systemName: "chevron.left")
+                Text("Back")
+            }
+            .foregroundColor(logoPurple)
+        })
     }
 }
