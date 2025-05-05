@@ -217,8 +217,11 @@ struct AttractionDetailView: View {
                         
                         // Map
                         if let location = attraction.location {
-                            Map(coordinateRegion: $region, annotationItems: [MapLocation(id: "destination", coordinate: location)]) { place in
-                                MapMarker(coordinate: place.coordinate, tint: logoPurple)
+                            Map {
+                                Marker(coordinate: location, label: {
+                                    Text(attraction.name)
+                                })
+                                .tint(logoPurple)
                             }
                             .frame(height: 200)
                             .cornerRadius(12)
@@ -628,8 +631,16 @@ struct DirectionsView: View {
             }
             
             // Map with route
-            Map(coordinateRegion: $region, annotationItems: [MapLocation(id: "destination", coordinate: destination)]) { location in
-                MapMarker(coordinate: location.coordinate, tint: .red)
+            Map {
+                Marker(coordinate: destination, label: {
+                    Text(name)
+                })
+                .tint(.red)
+                
+                if let route = route {
+                    MapPolyline(route.polyline)
+                        .stroke(.blue, lineWidth: 3)
+                }
             }
             .edgesIgnoringSafeArea(.horizontal)
             
@@ -724,9 +735,11 @@ struct AddReviewView: View {
     @State private var rating: Int = 0
     @State private var comment: String = ""
     @State private var showingImagePicker = false
-    @State private var selectedImages: [UIImage] = []
+    @State private var selectedImage: UIImage?
+    @State private var uploadedImageUrl: String?
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject var reviewViewModel: ReviewViewModel
+    @EnvironmentObject var storageService: StorageService
     
     let logoPurple = Color(
         red: 121 / 255.0,
@@ -758,10 +771,50 @@ struct AddReviewView: View {
                         .frame(minHeight: 100)
                 }
                 
-                // Image upload functionality would go here
-                // For now, we'll skip image uploads to keep it simple
+                // Image upload section
+                Section(header: Text("Add Photo")) {
+                    if let selectedImage = selectedImage {
+                        HStack {
+                            Image(uiImage: selectedImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 100, height: 100)
+                                .clipped()
+                                .cornerRadius(8)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                self.selectedImage = nil
+                                self.uploadedImageUrl = nil
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    } else {
+                        Button(action: {
+                            showingImagePicker = true
+                        }) {
+                            HStack {
+                                Image(systemName: "photo.on.rectangle")
+                                Text("Add Photo")
+                            }
+                        }
+                    }
+                }
                 
-                if let error = reviewViewModel.error {
+                if storageService.isUploading {
+                    Section {
+                        HStack {
+                            Spacer()
+                            ProgressView("Uploading photo...")
+                            Spacer()
+                        }
+                    }
+                }
+                
+                if let error = reviewViewModel.error ?? storageService.error {
                     Section {
                         Text(error)
                             .foregroundColor(.red)
@@ -772,7 +825,7 @@ struct AddReviewView: View {
                     Button(action: {
                         submitReview()
                     }) {
-                        if reviewViewModel.isLoading {
+                        if reviewViewModel.isLoading || storageService.isUploading {
                             ProgressView()
                                 .frame(maxWidth: .infinity, alignment: .center)
                         } else {
@@ -781,31 +834,82 @@ struct AddReviewView: View {
                                 .foregroundColor(logoPurple)
                         }
                     }
-                    .disabled(rating == 0 || reviewViewModel.isLoading)
+                    .disabled(rating == 0 || reviewViewModel.isLoading || storageService.isUploading)
                 }
             }
             .navigationTitle("Write a Review")
             .navigationBarItems(trailing: Button("Cancel") {
                 presentationMode.wrappedValue.dismiss()
             })
+            .sheet(isPresented: $showingImagePicker) {
+                ImagePicker(image: $selectedImage)
+            }
         }
     }
     
     private func submitReview() {
-        guard rating > 0 else { return }
-        
         Task {
+            // First upload image if selected
+            if let image = selectedImage {
+                uploadedImageUrl = await storageService.uploadImage(
+                    image,
+                    path: "reviews/\(attraction.id.uuidString)"
+                )
+            }
+            
+            // Then submit review with image URL if available
+            var imageUrls: [String]? = nil
+            if let uploadedUrl = uploadedImageUrl {
+                imageUrls = [uploadedUrl]
+            }
+            
             let success = await reviewViewModel.addReview(
                 attractionId: attraction.id,
                 userId: userId,
                 rating: rating,
-                comment: comment
+                comment: comment,
+                images: imageUrls
             )
             
             if success {
                 await reviewViewModel.fetchReviews(for: attraction.id)
                 presentationMode.wrappedValue.dismiss()
             }
+        }
+    }
+}
+
+// Image Picker for selecting photos
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = .photoLibrary
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.image = image
+            }
+            
+            parent.presentationMode.wrappedValue.dismiss()
         }
     }
 }

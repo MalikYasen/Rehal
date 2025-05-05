@@ -12,11 +12,13 @@ class AttractionViewModel: ObservableObject {
     
     init(supabase: SupabaseClient) {
         self.supabase = supabase
+        print("AttractionViewModel initialized")
     }
     
     func fetchAttractions(category: String? = nil) async {
         isLoading = true
         error = nil
+        print("Fetching attractions, category: \(category ?? "all")")
         
         do {
             var query = supabase.from("attractions").select()
@@ -26,6 +28,113 @@ class AttractionViewModel: ObservableObject {
             }
             
             let response = try await query.execute()
+            print("Fetch response received")
+            
+            // Check what we're getting back
+            print("Response data type: \(type(of: response.data))")
+            print("Response data: \(String(describing: response.data))")
+            
+            // Handle the response as raw Data
+            if let responseData = response.data as? Data {
+                do {
+                    // Decode the JSON data
+                    let jsonObject = try JSONSerialization.jsonObject(with: responseData, options: [])
+                    print("JSON object type: \(type(of: jsonObject))")
+                    
+                    // Check if it's an array of attractions
+                    if let attractionsArray = jsonObject as? [[String: Any]] {
+                        print("Found \(attractionsArray.count) attractions in JSON array")
+                        
+                        let decoder = JSONDecoder()
+                        decoder.dateDecodingStrategy = .iso8601
+                        
+                        var loadedAttractions: [Attraction] = []
+                        
+                        for (index, json) in attractionsArray.enumerated() {
+                            do {
+                                let jsonData = try JSONSerialization.data(withJSONObject: json)
+                                if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
+                                    loadedAttractions.append(attraction)
+                                    print("Successfully decoded attraction: \(attraction.name)")
+                                } else {
+                                    print("Failed to decode attraction at index \(index)")
+                                }
+                            } catch {
+                                print("Error processing attraction at index \(index): \(error)")
+                            }
+                        }
+                        
+                        self.attractions = loadedAttractions
+                        print("Successfully loaded \(loadedAttractions.count) attractions")
+                    }
+                    // It might be in a nested structure like {"data": [...]}
+                    else if let jsonDict = jsonObject as? [String: Any],
+                            let attractionsArray = jsonDict["data"] as? [[String: Any]] {
+                        print("Found \(attractionsArray.count) attractions in nested data field")
+                        
+                        let decoder = JSONDecoder()
+                        decoder.dateDecodingStrategy = .iso8601
+                        
+                        var loadedAttractions: [Attraction] = []
+                        
+                        for (index, json) in attractionsArray.enumerated() {
+                            do {
+                                let jsonData = try JSONSerialization.data(withJSONObject: json)
+                                if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
+                                    loadedAttractions.append(attraction)
+                                    print("Successfully decoded attraction: \(attraction.name)")
+                                } else {
+                                    print("Failed to decode attraction at index \(index)")
+                                }
+                            } catch {
+                                print("Error processing attraction at index \(index): \(error)")
+                            }
+                        }
+                        
+                        self.attractions = loadedAttractions
+                        print("Successfully loaded \(loadedAttractions.count) attractions")
+                    } else {
+                        print("JSON structure not recognized: \(jsonObject)")
+                        self.attractions = []
+                        self.error = "Data format not recognized"
+                    }
+                } catch {
+                    print("Error parsing JSON data: \(error)")
+                    self.attractions = []
+                    self.error = "Error parsing response data"
+                }
+            } else {
+                print("Response data is not of type Data")
+                self.attractions = []
+                self.error = "Unexpected response format"
+            }
+            
+            isLoading = false
+        } catch {
+            print("Error fetching attractions: \(error)")
+            isLoading = false
+            self.error = "Failed to fetch attractions: \(error.localizedDescription)"
+        }
+    }
+    
+    func searchAttractions(query: String, category: String? = nil) async {
+        isLoading = true
+        error = nil
+        
+        do {
+            var supabaseQuery = supabase.from("attractions").select()
+            
+            // Apply filters
+            if !query.isEmpty {
+                // Search in name, description, category, and subcategory
+                supabaseQuery = supabaseQuery.or("name.ilike.%\(query)%,description.ilike.%\(query)%,category.ilike.%\(query)%,subcategory.ilike.%\(query)%")
+            }
+            
+            if let category = category {
+                supabaseQuery = supabaseQuery.eq("category", value: category)
+            }
+            
+            let response = try await supabaseQuery.execute()
             
             if let jsonArray = response.data as? [[String: Any]] {
                 let decoder = JSONDecoder()
@@ -52,7 +161,69 @@ class AttractionViewModel: ObservableObject {
             isLoading = false
         } catch {
             isLoading = false
-            self.error = "Failed to fetch attractions: \(error.localizedDescription)"
+            self.error = "Search failed: \(error.localizedDescription)"
+        }
+    }
+    
+    func fetchNearbyAttractions(latitude: Double, longitude: Double, radiusInKm: Double = 5.0) async {
+        isLoading = true
+        error = nil
+        
+        // Using PostGIS (if available in your Supabase instance) for location-based queries
+        // If not, you might need to calculate distances on the client side
+        do {
+            // This assumes your Supabase has PostGIS enabled and your table has a geo_point column
+            // If not, you'll need to fetch all attractions and filter them locally
+            let query = """
+                SELECT *, 
+                ST_Distance(
+                    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(\(longitude), \(latitude)), 4326)::geography
+                ) as distance
+                FROM attractions
+                WHERE ST_DWithin(
+                    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(\(longitude), \(latitude)), 4326)::geography,
+                    \(radiusInKm * 1000)
+                )
+                ORDER BY distance
+            """
+            
+            let response = try await supabase.rpc("nearby_attractions", params: [
+                "user_lng": longitude,
+                "user_lat": latitude,
+                "radius_km": radiusInKm
+            ]).execute()
+            
+            if let jsonArray = response.data as? [[String: Any]] {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                
+                var loadedAttractions: [Attraction] = []
+                
+                for json in jsonArray {
+                    do {
+                        let jsonData = try JSONSerialization.data(withJSONObject: json)
+                        if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
+                            loadedAttractions.append(attraction)
+                        }
+                    } catch {
+                        print("Error decoding attraction: \(error)")
+                    }
+                }
+                
+                self.attractions = loadedAttractions
+            } else {
+                self.attractions = []
+            }
+            
+            isLoading = false
+        } catch {
+            isLoading = false
+            self.error = "Failed to fetch nearby attractions: \(error.localizedDescription)"
+            
+            // Fallback: Get all attractions and filter locally if server-side filtering fails
+            await fetchAttractions()
         }
     }
     

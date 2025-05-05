@@ -5,6 +5,7 @@ struct ProfileView: View {
     @State private var notificationsEnabled = true
     @State private var showingLogoutAlert = false
     @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var themeManager: ThemeManager
     
     // Define the custom purple color (same as login page)
     let logoPurple = Color(
@@ -96,6 +97,30 @@ struct ProfileView: View {
                 
                 Divider()
                 
+                // Theme/Appearance row
+                NavigationLink(destination: ThemeSettingsView()) {
+                    HStack {
+                        Image(systemName: "moon.fill")
+                            .frame(width: 30)
+                        
+                        Text("Appearance")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        Text(themeManager.colorSchemePreference.displayName)
+                            .foregroundColor(.gray)
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                }
+                
+                Divider()
+                
                 // Privacy row
                 Button(action: {
                     // Action for privacy
@@ -106,7 +131,7 @@ struct ProfileView: View {
                         
                         Text("Privacy")
                             .font(.body)
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
@@ -114,7 +139,7 @@ struct ProfileView: View {
                             .foregroundColor(.gray)
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                 }
                 
                 Divider()
@@ -129,7 +154,7 @@ struct ProfileView: View {
                         
                         Text("Information")
                             .font(.body)
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
@@ -137,7 +162,7 @@ struct ProfileView: View {
                             .foregroundColor(.gray)
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                 }
                 
                 Divider()
@@ -152,7 +177,7 @@ struct ProfileView: View {
                         
                         Text("Logout")
                             .font(.body)
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
@@ -160,7 +185,7 @@ struct ProfileView: View {
                             .foregroundColor(.gray)
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                 }
             }
             .background(Color(UIColor.systemGroupedBackground))
@@ -180,5 +205,31 @@ struct ProfileView: View {
                 secondaryButton: .cancel()
             )
         }
+    }
+}
+
+struct ThemeSettingsView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    var body: some View {
+        List {
+            ForEach(ColorSchemePreference.allCases, id: \.self) { preference in
+                Button(action: {
+                    themeManager.colorSchemePreference = preference
+                }) {
+                    HStack {
+                        Text(preference.displayName)
+                        
+                        Spacer()
+                        
+                        if themeManager.colorSchemePreference == preference {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Appearance")
     }
 }

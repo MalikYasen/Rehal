@@ -13,6 +13,8 @@ struct RehalApp: App {
     @StateObject private var authViewModel: AuthViewModel
     @StateObject private var attractionViewModel: AttractionViewModel
     @StateObject private var reviewViewModel: ReviewViewModel
+    @StateObject private var storageService: StorageService
+    @StateObject private var themeManager = ThemeManager()
     
     // Use init() to properly initialize the StateObjects
     init() {
@@ -20,11 +22,13 @@ struct RehalApp: App {
         let authVM = AuthViewModel(supabase: supabaseClient)
         let attractionVM = AttractionViewModel(supabase: supabaseClient)
         let reviewVM = ReviewViewModel(supabase: supabaseClient)
+        let storageVM = StorageService(supabase: supabaseClient)
         
         // Initialize the @StateObjects
         _authViewModel = StateObject(wrappedValue: authVM)
         _attractionViewModel = StateObject(wrappedValue: attractionVM)
         _reviewViewModel = StateObject(wrappedValue: reviewVM)
+        _storageService = StateObject(wrappedValue: storageVM)
     }
     
     var body: some Scene {
@@ -33,6 +37,9 @@ struct RehalApp: App {
                 .environmentObject(authViewModel)
                 .environmentObject(attractionViewModel)
                 .environmentObject(reviewViewModel)
+                .environmentObject(storageService)
+                .environmentObject(themeManager)
+                .preferredColorScheme(themeManager.colorScheme)
         }
     }
 }
