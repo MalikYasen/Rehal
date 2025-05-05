@@ -96,8 +96,16 @@ struct AttractionDetailView: View {
                             )
                     }
                     
-                    // Controls overlay
-                    VStack {
+                    // Controls overlay - Updated to respect safe area
+                    ZStack(alignment: .top) {
+                        // Transparent overlay to help with visibility
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.black.opacity(0.4), Color.clear]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 100)
+                        
                         HStack {
                             Button(action: {
                                 presentationMode.wrappedValue.dismiss()
@@ -110,7 +118,6 @@ struct AttractionDetailView: View {
                                     .clipShape(Circle())
                             }
                             .padding(.leading, 16)
-                            .padding(.top, 16)
                             
                             Spacer()
                             
@@ -126,13 +133,16 @@ struct AttractionDetailView: View {
                                         .clipShape(Circle())
                                 }
                                 .padding(.trailing, 16)
-                                .padding(.top, 16)
                             }
                         }
-                        
-                        Spacer()
+                        .padding(.top, 8)
                     }
                     .frame(height: 250)
+                }
+                .safeAreaInset(edge: .top) {
+                    Color.clear
+                        .frame(height: 0)
+                        .background(Color.clear)
                 }
                 
                 // Main content

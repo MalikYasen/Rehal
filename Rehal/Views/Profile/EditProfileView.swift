@@ -11,9 +11,13 @@ struct EditProfileView: View {
     @State private var errorMessage: String?
     @State private var showingSuccessToast = false
     
-    // State to track if form was changed
+    // State to track if form was changed - keep both properties
     @State private var formChanged = false
     @State private var showingDiscardAlert = false
+    
+    // Properties to track initial values
+    @State private var initialFullName: String = ""
+    @State private var initialProfileImage: UIImage?
     
     // Define the custom purple color (same as login page)
     let logoPurple = Color(
@@ -71,8 +75,8 @@ struct EditProfileView: View {
                             .padding()
                             .background(Color(.systemGray6))
                             .cornerRadius(10)
-                            .onChange(of: fullName) { _ in
-                                formChanged = true
+                            .onChange(of: fullName) { _, newValue in
+                                formChanged = (newValue != initialFullName) || profileImage != initialProfileImage
                             }
                     }
                     
@@ -164,12 +168,18 @@ struct EditProfileView: View {
         .onAppear {
             // Initialize form with current values
             fullName = authViewModel.displayName
+            initialFullName = authViewModel.displayName
+            // Set initialProfileImage when we have a way to fetch it
+            // initialProfileImage = (fetch current profile image)
+            
+            // Reset formChanged flag on appear
+            formChanged = false
         }
         .sheet(isPresented: $showingImagePicker) {
             // Use ProfileImagePicker instead of ImagePicker to avoid naming conflicts
             ProfileImagePicker(image: $profileImage)
-                .onChange(of: profileImage) { _ in
-                    formChanged = true
+                .onChange(of: profileImage) { _, newValue in
+                    formChanged = (fullName != initialFullName) || newValue != initialProfileImage
                 }
         }
         .alert(isPresented: $showingDiscardAlert) {
@@ -177,7 +187,10 @@ struct EditProfileView: View {
                 title: Text("Discard Changes?"),
                 message: Text("You have unsaved changes. Are you sure you want to go back?"),
                 primaryButton: .destructive(Text("Discard")) {
-                    dismiss()
+                    // Update this to ensure dismiss works
+                    DispatchQueue.main.async {
+                        self.dismiss()
+                    }
                 },
                 secondaryButton: .cancel()
             )
@@ -228,6 +241,10 @@ struct EditProfileView: View {
                     isLoading = false
                     formChanged = false
                     showingSuccessToast = true
+                    
+                    // Update initial values to reflect saved state
+                    initialFullName = fullName
+                    initialProfileImage = profileImage
                     
                     // Hide the toast after 3 seconds
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -509,17 +526,23 @@ struct EditProfileView: View {
             Task {
                 do {
                     // First verify the current password by attempting to sign in
-                    try await authViewModel.verifyCurrentPassword(
+                    // Fix the unused result warning by storing the result in a variable
+                    let verified = try await authViewModel.verifyCurrentPassword(
                         email: authViewModel.email,
                         currentPassword: currentPassword
                     )
                     
-                    // Then update the password with the new method
-                    try await authViewModel.updatePassword(newPassword: newPassword)
-                    
-                    await MainActor.run {
-                        isLoading = false
-                        showingSuccessAlert = true
+                    // Only proceed if verification was successful
+                    if verified {
+                        // Then update the password with the new method
+                        try await authViewModel.updatePassword(newPassword: newPassword)
+                        
+                        await MainActor.run {
+                            isLoading = false
+                            showingSuccessAlert = true
+                        }
+                    } else {
+                        throw NSError(domain: "PasswordError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Current password is incorrect"])
                     }
                 } catch {
                     await MainActor.run {
