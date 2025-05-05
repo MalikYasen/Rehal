@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		84CB6B9B2DB41E5C00A4A1D6 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 84CB6B9A2DB41E5C00A4A1D6 /* FirebaseAuth */; };
 		84DD22992DB020D200309BF4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 84DD22982DB020D200309BF4 /* Supabase */; };
 /* End PBXBuildFile section */
 
@@ -58,7 +57,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				84DD22992DB020D200309BF4 /* Supabase in Frameworks */,
-				84CB6B9B2DB41E5C00A4A1D6 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,7 +118,6 @@
 			name = Rehal;
 			packageProductDependencies = (
 				84DD22982DB020D200309BF4 /* Supabase */,
-				84CB6B9A2DB41E5C00A4A1D6 /* FirebaseAuth */,
 			);
 			productName = Rehal;
 			productReference = 84DD225C2DB01A5300309BF4 /* Rehal.app */;
@@ -206,7 +203,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				84DD22972DB020D200309BF4 /* XCRemoteSwiftPackageReference "supabase-swift" */,
-				84CB6B992DB41E5C00A4A1D6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 84DD225D2DB01A5300309BF4 /* Products */;
@@ -408,6 +404,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y7BC269A7A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -415,12 +412,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = test.Rehal;
+				PRODUCT_BUNDLE_IDENTIFIER = Rehal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -435,6 +433,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y7BC269A7A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -442,12 +441,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = test.Rehal;
+				PRODUCT_BUNDLE_IDENTIFIER = Rehal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -565,14 +565,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		84CB6B992DB41E5C00A4A1D6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 11.11.0;
-			};
-		};
 		84DD22972DB020D200309BF4 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase-community/supabase-swift";
@@ -584,11 +576,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		84CB6B9A2DB41E5C00A4A1D6 /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 84CB6B992DB41E5C00A4A1D6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
 		84DD22982DB020D200309BF4 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 84DD22972DB020D200309BF4 /* XCRemoteSwiftPackageReference "supabase-swift" */;

@@ -9,7 +9,7 @@ struct SignUpView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var fullName = ""
-    @State private var showSuccessAlert = false
+    @State private var showSignUpSuccessToast = false
     
     // Define the custom purple color
     let logoPurple = Color(
@@ -129,16 +129,32 @@ struct SignUpView: View {
                 }
                 .foregroundColor(.white)
             })
-        }
-        .alert("Account Created", isPresented: $showSuccessAlert) {
-            Button("OK") {
-                // Use DispatchQueue to ensure the dismiss happens after the alert is closed
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    dismiss()
+            
+            // Success toast notification
+            if showSignUpSuccessToast {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Account created successfully!")
+                            .foregroundColor(.white)
+                            .fontWeight(.semibold)
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(10)
+                    .padding(.bottom, 80)
+                }
+                .transition(.move(edge: .bottom))
+                .animation(.easeInOut, value: showSignUpSuccessToast)
+                .onAppear {
+                    // Automatically dismiss the toast after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        showSignUpSuccessToast = false
+                    }
                 }
             }
-        } message: {
-            Text("Please check your email to confirm your account.")
         }
     }
     
@@ -178,7 +194,10 @@ struct SignUpView: View {
             )
             
             if success {
-                showSuccessAlert = true
+                // Show brief success toast instead of an alert
+                showSignUpSuccessToast = true
+                
+                // No need to dismiss - user is now logged in and should continue to the main app
             }
         }
     }

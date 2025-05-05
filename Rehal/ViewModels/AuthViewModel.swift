@@ -56,6 +56,15 @@ class AuthViewModel: ObservableObject {
                 ])
                 .execute()
             
+            // Automatically sign in the user after successful signup
+            let signInSession = try await supabase.auth.signIn(
+                email: email,
+                password: password
+            )
+            
+            // Update the session directly
+            self.session = signInSession
+            
             isLoading = false
             return true
         } catch {
