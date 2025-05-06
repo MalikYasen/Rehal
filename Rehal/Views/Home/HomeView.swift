@@ -228,27 +228,26 @@ struct HomeView: View {
                     }
                     
                     // Debug information
-                    #if DEBUG
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Debug Info")
-                            .font(.headline)
-                        
-                        Text("Attraction count: \(attractionViewModel.attractions.count)")
-                        Text("Selected category: \(selectedCategory?.rawValue ?? "None")")
-                        Text("User logged in: \(authViewModel.isAuthenticated ? "Yes" : "No")")
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                    .padding(.horizontal)
-                    #endif
+//                    #if DEBUG
+//                    VStack(alignment: .leading, spacing: 8) {
+//                        Text("Debug Info")
+//                            .font(.headline)
+//                        
+//                        Text("Attraction count: \(attractionViewModel.attractions.count)")
+//                        Text("Selected category: \(selectedCategory?.rawValue ?? "None")")
+//                        Text("User logged in: \(authViewModel.isAuthenticated ? "Yes" : "No")")
+//                    }
+//                    .padding()
+//                    .background(Color(.systemGray6))
+//                    .cornerRadius(8)
+//                    .padding(.horizontal)
+//                    #endif
                 }
                 .padding(.vertical)
             }
             .navigationBarHidden(true)
             .onAppear {
                 Task {
-                    print("HomeView appeared, fetching attractions")
                     // Double check if we have attractions loaded
                     if attractionViewModel.attractions.isEmpty {
                         await attractionViewModel.fetchAttractions()

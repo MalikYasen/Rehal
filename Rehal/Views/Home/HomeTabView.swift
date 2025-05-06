@@ -15,7 +15,6 @@ struct HomeTabView: View {
             // Profile Tab
             NavigationView {
                 ProfileView()
-                    .navigationBarHidden(true)
             }
             .tabItem {
                 Label("Profile", systemImage: "person.fill")

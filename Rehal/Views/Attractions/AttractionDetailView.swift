@@ -8,12 +8,13 @@ struct AttractionDetailView: View {
     @State private var region: MKCoordinateRegion
     @State private var showDirections = false
     @State private var showAddReviewSheet = false
-    @Environment(\.presentationMode) var presentationMode
-    @EnvironmentObject var authViewModel: AuthViewModel
-    @EnvironmentObject var attractionViewModel: AttractionViewModel
-    @EnvironmentObject var reviewViewModel: ReviewViewModel
+    @State private var isFavorite: Bool = false
+    @Environment(\.presentationMode) private var presentationMode
+    @EnvironmentObject private var authViewModel: AuthViewModel
+    @EnvironmentObject private var attractionViewModel: AttractionViewModel
+    @EnvironmentObject private var reviewViewModel: ReviewViewModel
     
-    // Define the custom purple color (same as login page)
+    // Define the custom purple color
     let logoPurple = Color(
         red: 121 / 255.0,
         green: 65 / 255.0,
@@ -40,388 +41,466 @@ struct AttractionDetailView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Image gallery with page indicator
-                ZStack(alignment: .bottom) {
-                    if let images = attraction.images, !images.isEmpty {
-                        TabView(selection: $selectedImageIndex) {
-                            ForEach(0..<images.count, id: \.self) { index in
-                                AsyncImage(url: URL(string: images[index])) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                            .overlay(ProgressView())
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    case .failure:
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                            .overlay(
-                                                Image(systemName: "photo")
-                                                    .font(.largeTitle)
-                                                    .foregroundColor(.gray)
-                                            )
-                                    @unknown default:
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                    }
-                                }
-                                .tag(index)
-                            }
-                        }
-                        .tabViewStyle(PageTabViewStyle())
-                        .frame(height: 250)
-                        
-                        // Page indicator
-                        HStack(spacing: 8) {
-                            ForEach(0..<images.count, id: \.self) { index in
-                                Circle()
-                                    .fill(selectedImageIndex == index ? logoPurple : Color.white)
-                                    .frame(width: 8, height: 8)
-                            }
-                        }
-                        .padding(.bottom, 16)
-                    } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(height: 250)
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundColor(.gray)
-                            )
-                    }
-                    
-                    // Controls overlay - Updated to respect safe area
+        GeometryReader { geometry in
+            let topSafeArea = geometry.safeAreaInsets.top
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Image gallery with page indicator
                     ZStack(alignment: .top) {
-                        // Transparent overlay to help with visibility
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.black.opacity(0.4), Color.clear]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 100)
-                        
-                        HStack {
-                            Button(action: {
-                                presentationMode.wrappedValue.dismiss()
-                            }) {
-                                Image(systemName: "chevron.left")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding(12)
-                                    .background(Color.black.opacity(0.6))
-                                    .clipShape(Circle())
-                            }
-                            .padding(.leading, 16)
-                            
-                            Spacer()
-                            
-                            if let userId = authViewModel.session?.user.id {
-                                Button(action: {
-                                    toggleFavorite(userId: userId)
-                                }) {
-                                    Image(systemName: attractionViewModel.isFavorite(attractionId: attraction.id) ? "heart.fill" : "heart")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding(12)
-                                        .background(Color.black.opacity(0.6))
-                                        .clipShape(Circle())
-                                }
-                                .padding(.trailing, 16)
-                            }
-                        }
-                        .padding(.top, 8)
+                        imageGallery
+                        controlsOverlay(topSafeArea: topSafeArea)
                     }
-                    .frame(height: 250)
+                    
+                    // Main content
+                    VStack(alignment: .leading, spacing: 20) {
+                        headerSection
+                        Divider()
+                        descriptionSection
+                        Divider()
+                        locationSection
+                        Divider()
+                        reviewsSection
+                    }
+                    .padding()
                 }
-                .safeAreaInset(edge: .top) {
-                    Color.clear
-                        .frame(height: 0)
-                        .background(Color.clear)
+            }
+            .ignoresSafeArea(edges: .top)
+            .navigationBarHidden(true)
+            .sheet(isPresented: $showDirections) {
+                if let location = attraction.location {
+                    DirectionsView(destination: location, name: attraction.name)
                 }
-                
-                // Main content
-                VStack(alignment: .leading, spacing: 20) {
-                    // Title and rating
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(attraction.name)
-                            .font(.title)
-                            .fontWeight(.bold)
-                        
-                        HStack {
-                            // Category
-                            Text(attraction.category)
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                            
-                            if let subcategory = attraction.subcategory {
-                                Text("•")
-                                    .foregroundColor(.gray)
-                                
-                                Text(subcategory)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                            
-                            // Price level
-                            if let priceLevel = attraction.priceLevel {
-                                Text(String(repeating: "$", count: priceLevel))
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        
-                        // We'll display average rating from reviews
-                        HStack {
-                            HStack(spacing: 4) {
-                                Image(systemName: "star.fill")
-                                    .foregroundColor(.yellow)
-                                
-                                Text(String(format: "%.1f", calculateAverageRating()))
-                                    .fontWeight(.semibold)
-                                
-                                Text("(\(reviewViewModel.reviews.count) reviews)")
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // Description
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("About")
-                            .font(.headline)
-                        
-                        Text(attraction.description)
-                            .font(.body)
-                            .lineLimit(showFullDescription ? nil : 3)
-                        
-                        Button(action: {
-                            showFullDescription.toggle()
-                        }) {
-                            Text(showFullDescription ? "Show Less" : "Read More")
-                                .font(.subheadline)
-                                .foregroundColor(logoPurple)
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // Location and map
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Location")
-                            .font(.headline)
-                        
-                        if let address = attraction.address {
-                            Text(address)
-                                .font(.subheadline)
-                        }
-                        
-                        // Map
-                        if let location = attraction.location {
-                            Map {
-                                Marker(coordinate: location, label: {
-                                    Text(attraction.name)
-                                })
-                                .tint(logoPurple)
-                            }
-                            .frame(height: 200)
-                            .cornerRadius(12)
-                            
-                            // Directions button
-                            Button(action: {
-                                showDirections = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "location.fill")
-                                    Text("Get Directions")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(logoPurple)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    // Reviews
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("Reviews")
-                                .font(.headline)
-                            
-                            Spacer()
-                            
-                            if reviewViewModel.reviews.count > 2 {
-                                NavigationLink(destination: AllReviewsView(attraction: attraction)) {
-                                    Text("See All")
-                                        .font(.subheadline)
-                                        .foregroundColor(logoPurple)
-                                }
-                            }
-                        }
-                        
-                        // Review summary
-                        if !reviewViewModel.reviews.isEmpty {
-                            HStack(spacing: 20) {
-                                VStack(spacing: 4) {
-                                    Text(String(format: "%.1f", calculateAverageRating()))
-                                        .font(.system(size: 36, weight: .bold))
-                                    
-                                    // Star rating
-                                    HStack(spacing: 4) {
-                                        ForEach(1...5, id: \.self) { star in
-                                            Image(systemName: star <= Int(calculateAverageRating()) ? "star.fill" : "star")
-                                                .foregroundColor(.yellow)
-                                                .font(.system(size: 12))
-                                        }
-                                    }
-                                    
-                                    Text("\(reviewViewModel.reviews.count) reviews")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                                
-                                Divider()
-                                    .frame(height: 60)
-                                
-                                // Rating bars (showing distribution)
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ForEach((1...5).reversed(), id: \.self) { rating in
-                                        HStack(spacing: 8) {
-                                            Text("\(rating)")
-                                                .font(.caption)
-                                                .frame(width: 8)
-                                            
-                                            let percentage = calculateRatingPercentage(for: rating)
-                                            Rectangle()
-                                                .fill(Color.gray.opacity(0.3))
-                                                .frame(width: 100, height: 6)
-                                                .overlay(
-                                                    Rectangle()
-                                                        .fill(Color.yellow)
-                                                        .frame(width: 100 * percentage, height: 6),
-                                                    alignment: .leading
-                                                )
-                                                .cornerRadius(3)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
-                        }
-                        
-                        // Reviews display
-                        if reviewViewModel.isLoading {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding()
-                        } else if reviewViewModel.reviews.isEmpty {
-                            Text("No reviews yet. Be the first to review!")
-                                .foregroundColor(.gray)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding()
-                        } else {
-                            // Display top 2 reviews
-                            ForEach(reviewViewModel.reviews.prefix(2)) { review in
-                                ReviewRow(review: review)
-                            }
-                        }
-                        
-                        // Write review button
-                        if authViewModel.isAuthenticated {
-                            Button(action: {
-                                showAddReviewSheet = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "square.and.pencil")
-                                    Text("Write a Review")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .foregroundColor(.primary)
-                                .cornerRadius(10)
-                            }
-                        } else {
-                            NavigationLink(destination: LoginView()) {
-                                HStack {
-                                    Image(systemName: "square.and.pencil")
-                                    Text("Log in to Write a Review")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .foregroundColor(.primary)
-                                .cornerRadius(10)
-                            }
-                        }
-                    }
-                }
-                .padding()
             }
-        }
-        .edgesIgnoringSafeArea(.top)
-        .navigationBarHidden(true)
-        .sheet(isPresented: $showDirections) {
-            if let location = attraction.location {
-                DirectionsView(destination: location, name: attraction.name)
-            }
-        }
-        .sheet(isPresented: $showAddReviewSheet) {
-            if let userId = authViewModel.session?.user.id {
-                AddReviewView(attraction: attraction, userId: userId)
-                    .environmentObject(reviewViewModel)
-            }
-        }
-        .onAppear {
-            Task {
-                await reviewViewModel.fetchReviews(for: attraction.id)
-                
+            .sheet(isPresented: $showAddReviewSheet) {
                 if let userId = authViewModel.session?.user.id {
-                    await attractionViewModel.fetchFavorites(for: userId)
+                    AddReviewView(attraction: attraction, userId: userId)
+                        .environmentObject(reviewViewModel)
+                }
+            }
+            .onAppear {
+                print("AttractionDetailView appeared for \(attraction.name)")
+                print("Attraction ID: \(attraction.id)")
+                
+                Task {
+                    if let userId = authViewModel.session?.user.id {
+                        print("Checking favorites for user: \(userId)")
+                        
+                        let favoriteCheck = await checkFavoriteDirectly(userId: userId, attractionId: attraction.id)
+                        
+                        await MainActor.run {
+                            isFavorite = favoriteCheck
+                        }
+                        
+                        await attractionViewModel.fetchFavorites(for: userId)
+                    }
+                    
+                    await reviewViewModel.fetchReviews(for: attraction.id)
                 }
             }
         }
     }
     
-    // Helper function to toggle favorite status
+    // MARK: - View Components
+    
+    private var imageGallery: some View {
+        Group {
+            if let images = attraction.images, !images.isEmpty {
+                TabView(selection: $selectedImageIndex) {
+                    ForEach(0..<images.count, id: \.self) { index in
+                        AsyncImage(url: getProperImageURL(images[index])) { phase in
+                            switch phase {
+                            case .empty:
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .overlay(ProgressView())
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            case .failure:
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundColor(.gray)
+                                    )
+                            @unknown default:
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.3))
+                            }
+                        }
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle())
+                .frame(height: 250)
+                
+                // Page indicator at the bottom
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach(0..<(attraction.images?.count ?? 0), id: \.self) { index in
+                            Circle()
+                                .fill(selectedImageIndex == index ? logoPurple : Color.white)
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    .padding(.bottom, 16)
+                }
+                .frame(height: 250)
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 250)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .font(.largeTitle)
+                            .foregroundColor(.gray)
+                    )
+            }
+        }
+    }
+    
+    private func controlsOverlay(topSafeArea: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            // Add padding for the safe area
+            Spacer().frame(height: topSafeArea)
+            
+            // Gradient for better button visibility
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black.opacity(0.4), Color.clear]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 60)
+            .overlay(
+                HStack {
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(Circle())
+                    }
+                    .padding(.leading, 16)
+                    
+                    Spacer()
+                    
+                    if let userId = authViewModel.session?.user.id {
+                        Button(action: {
+                            toggleFavorite(userId: userId)
+                        }) {
+                            Image(systemName: isFavorite ? "heart.fill" : "heart")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .padding(12)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                        }
+                        .padding(.trailing, 16)
+                    }
+                }
+                .padding(.top, 8)
+            )
+            
+            Spacer()
+        }
+        .frame(height: 250)
+    }
+    
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(attraction.name)
+                .font(.title)
+                .fontWeight(.bold)
+            
+            HStack {
+                // Category
+                Text(attraction.category)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                if let subcategory = attraction.subcategory {
+                    Text("•")
+                        .foregroundColor(.gray)
+                    
+                    Text(subcategory)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                // Price level
+                if let priceLevel = attraction.priceLevel {
+                    Text(String(repeating: "$", count: priceLevel))
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            // We'll display average rating from reviews
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.yellow)
+                    
+                    Text(String(format: "%.1f", calculateAverageRating()))
+                        .fontWeight(.semibold)
+                    
+                    Text("(\(reviewViewModel.reviews.count) reviews)")
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private var descriptionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("About")
+                .font(.headline)
+            
+            Text(attraction.description)
+                .font(.body)
+                .lineLimit(showFullDescription ? nil : 3)
+            
+            Button(action: {
+                showFullDescription.toggle()
+            }) {
+                Text(showFullDescription ? "Show Less" : "Read More")
+                    .font(.subheadline)
+                    .foregroundColor(logoPurple)
+            }
+        }
+    }
+    
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Location")
+                .font(.headline)
+            
+            if let address = attraction.address {
+                Text(address)
+                    .font(.subheadline)
+            }
+            
+            // Map
+            if let location = attraction.location {
+                Map {
+                    Marker(coordinate: location, label: {
+                        Text(attraction.name)
+                    })
+                    .tint(logoPurple)
+                }
+                .frame(height: 200)
+                .cornerRadius(12)
+                
+                // Directions button
+                Button(action: {
+                    showDirections = true
+                }) {
+                    HStack {
+                        Image(systemName: "location.fill")
+                        Text("Get Directions")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(logoPurple)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+            }
+        }
+    }
+    
+    private var reviewsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Reviews")
+                    .font(.headline)
+                
+                Spacer()
+                
+                if reviewViewModel.reviews.count > 2 {
+                    NavigationLink(destination: AllReviewsView(attraction: attraction)) {
+                        Text("See All")
+                            .font(.subheadline)
+                            .foregroundColor(logoPurple)
+                    }
+                }
+            }
+            
+            // Review summary
+            if !reviewViewModel.reviews.isEmpty {
+                reviewSummaryView
+            }
+            
+            // Reviews display
+            if reviewViewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else if reviewViewModel.reviews.isEmpty {
+                Text("No reviews yet. Be the first to review!")
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                // Display top 2 reviews
+                ForEach(reviewViewModel.reviews.prefix(2)) { review in
+                    ReviewRow(review: review)
+                }
+            }
+            
+            // Write review button
+            reviewActionButton
+        }
+    }
+    
+    private var reviewSummaryView: some View {
+        HStack(spacing: 20) {
+            VStack(spacing: 4) {
+                Text(String(format: "%.1f", calculateAverageRating()))
+                    .font(.system(size: 36, weight: .bold))
+                
+                // Star rating
+                HStack(spacing: 4) {
+                    ForEach(1...5, id: \.self) { star in
+                        Image(systemName: star <= Int(calculateAverageRating()) ? "star.fill" : "star")
+                            .foregroundColor(.yellow)
+                            .font(.system(size: 12))
+                    }
+                }
+                
+                Text("\(reviewViewModel.reviews.count) reviews")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            Divider()
+                .frame(height: 60)
+            
+            // Rating bars (showing distribution)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach((1...5).reversed(), id: \.self) { rating in
+                    HStack(spacing: 8) {
+                        Text("\(rating)")
+                            .font(.caption)
+                            .frame(width: 8)
+                        
+                        let percentage = calculateRatingPercentage(for: rating)
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 100, height: 6)
+                            .overlay(
+                                Rectangle()
+                                    .fill(Color.yellow)
+                                    .frame(width: 100 * percentage, height: 6),
+                                alignment: .leading
+                            )
+                            .cornerRadius(3)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+    
+    private var reviewActionButton: some View {
+        Group {
+            if authViewModel.isAuthenticated {
+                Button(action: {
+                    showAddReviewSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "square.and.pencil")
+                        Text("Write a Review")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .foregroundColor(.primary)
+                    .cornerRadius(10)
+                }
+            } else {
+                NavigationLink(destination: LoginView()) {
+                    HStack {
+                        Image(systemName: "square.and.pencil")
+                        Text("Log in to Write a Review")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .foregroundColor(.primary)
+                    .cornerRadius(10)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    /// Checks if an attraction is a favorite directly from the database
+    private func checkFavoriteDirectly(userId: UUID, attractionId: UUID) async -> Bool {
+        do {
+            print("Checking if attraction \(attractionId) is a favorite for user \(userId)")
+            
+            let response = try await attractionViewModel.supabase.from("favorites")
+                .select("id")
+                .eq("user_id", value: userId.uuidString)
+                .eq("attraction_id", value: attractionId.uuidString)
+                .execute()
+            
+                let jsonString = String(data: response.data, encoding: .utf8) ?? ""
+                
+                // Simple check: if the response contains the attraction ID, it's likely a favorite
+                return jsonString.contains(attractionId.uuidString.lowercased())
+            
+        } catch {
+            print("Error checking favorites directly: \(error)")
+            return false
+        }
+    }
+    
+    /// Toggles the favorite status of an attraction
     private func toggleFavorite(userId: UUID) {
         Task {
-            if attractionViewModel.isFavorite(attractionId: attraction.id) {
+            if isFavorite {
+                print("Removing from favorites")
                 let success = await attractionViewModel.removeFromFavorites(
                     attractionId: attraction.id,
                     userId: userId
                 )
+                
                 if success {
-                    await attractionViewModel.fetchFavorites(for: userId)
+                    await MainActor.run {
+                        isFavorite = false
+                    }
                 }
             } else {
+                print("Adding to favorites")
                 let success = await attractionViewModel.addToFavorites(
                     attractionId: attraction.id,
                     userId: userId
                 )
+                
                 if success {
-                    await attractionViewModel.fetchFavorites(for: userId)
+                    await MainActor.run {
+                        isFavorite = true
+                    }
                 }
             }
         }
     }
     
-    // Helper function to calculate average rating
+    /// Calculates the average rating for an attraction
     private func calculateAverageRating() -> Double {
         if reviewViewModel.reviews.isEmpty {
             return 0.0
@@ -431,7 +510,7 @@ struct AttractionDetailView: View {
         return Double(sum) / Double(reviewViewModel.reviews.count)
     }
     
-    // Helper function to calculate percentage for a specific rating
+    /// Calculates the percentage of reviews with a specific rating
     private func calculateRatingPercentage(for rating: Int) -> Double {
         if reviewViewModel.reviews.isEmpty {
             return 0.0
@@ -441,10 +520,14 @@ struct AttractionDetailView: View {
         return Double(count) / Double(reviewViewModel.reviews.count)
     }
     
-    // Helper struct for map annotation
-    struct MapLocation: Identifiable {
-        let id: String
-        let coordinate: CLLocationCoordinate2D
+    /// Ensures image URLs are properly formatted
+    private func getProperImageURL(_ urlString: String) -> URL? {
+        if urlString.hasPrefix("http") {
+            return URL(string: urlString)
+        } else {
+            // Use the exact path to your Supabase storage
+            return URL(string: "https://vulhxauybqrvunqkazty.supabase.co/storage/v1/object/public/rehal-storage/attractions/\(urlString)")
+        }
     }
 }
 

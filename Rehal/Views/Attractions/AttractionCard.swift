@@ -8,7 +8,10 @@ struct AttractionCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // Image
             if let firstImage = attraction.images?.first, !firstImage.isEmpty {
-                AsyncImage(url: URL(string: firstImage)) { phase in
+                // Create proper image URL
+                let imageUrl = getProperImageURL(firstImage)
+                
+                AsyncImage(url: imageUrl) { phase in
                     switch phase {
                     case .empty:
                         Rectangle()
@@ -23,14 +26,20 @@ struct AttractionCard: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(minHeight: 120, maxHeight: 160)
                             .clipped()
-                    case .failure:
+                    case .failure(_):
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
                             .aspectRatio(16/9, contentMode: .fit)
                             .overlay(
-                                Image(systemName: "photo")
-                                    .font(.title)
-                                    .foregroundColor(.gray)
+                                VStack {
+                                    Image(systemName: "photo")
+                                        .font(.title)
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("Image failed to load")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
                             )
                     @unknown default:
                         Rectangle()
@@ -39,6 +48,10 @@ struct AttractionCard: View {
                     }
                 }
                 .cornerRadius(12, corners: [.topLeft, .topRight])
+                .onAppear {
+                    // Use onAppear for debugging
+                    print("Loading image from: \(imageUrl?.absoluteString ?? "nil")")
+                }
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.3))
@@ -84,6 +97,17 @@ struct AttractionCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+    
+    // Helper function to get the proper image URL
+    private func getProperImageURL(_ urlString: String) -> URL? {
+        if urlString.hasPrefix("http") {
+            return URL(string: urlString)
+        } else {
+            // Use your Supabase storage URL structure
+            return URL(string: "https://vulhxauybqrvunqkazty.supabase.co/storage/v1/object/public/rehal-storage/attractions/\(urlString)")
+
+        }
     }
     
     private func getCategoryTag(for attraction: Attraction) -> String {

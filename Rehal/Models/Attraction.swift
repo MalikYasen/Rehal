@@ -89,61 +89,6 @@ struct Attraction: Identifiable, Codable {
     }
 }
 
-// ReviewModel.swift
-import Foundation
 
-struct Review: Identifiable, Codable {
-    var id: UUID
-    var attractionId: UUID
-    var userId: UUID
-    var rating: Int
-    var comment: String?
-    var images: [String]?
-    var createdAt: Date
-    var userName: String?  // This is not in the DB, we'll populate it separately
-    
-    enum CodingKeys: String, CodingKey {
-        case id, comment, rating, images
-        case attractionId = "attraction_id"
-        case userId = "user_id"
-        case createdAt = "created_at"
-        case userName // This won't be in the JSON
-    }
-}
 
-// WorkingHoursModel.swift
-import Foundation
 
-struct WorkingHours: Identifiable, Codable {
-    var id: UUID
-    var attractionId: UUID
-    var day: String
-    var openTime: String?
-    var closeTime: String?
-    var isOpen: Bool
-    
-    enum CodingKeys: String, CodingKey {
-        case id, day
-        case attractionId = "attraction_id"
-        case openTime = "open_time"
-        case closeTime = "close_time"
-        case isOpen = "is_open"
-    }
-}
-
-// FavoriteModel.swift
-import Foundation
-
-struct Favorite: Identifiable, Codable {
-    var id: UUID
-    var userId: UUID
-    var attractionId: UUID
-    var createdAt: Date
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case attractionId = "attraction_id"
-        case createdAt = "created_at"
-    }
-}

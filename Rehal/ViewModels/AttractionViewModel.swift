@@ -8,7 +8,7 @@ class AttractionViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     
-    private let supabase: SupabaseClient
+    public let supabase: SupabaseClient
     
     init(supabase: SupabaseClient) {
         self.supabase = supabase
@@ -284,6 +284,8 @@ class AttractionViewModel: ObservableObject {
         error = nil
         
         do {
+            // Simply try to insert the favorite
+            // If there's a duplicate, it will throw an error that contains "duplicate key"
             try await supabase.from("favorites")
                 .insert([
                     "user_id": userId.uuidString,
@@ -294,8 +296,18 @@ class AttractionViewModel: ObservableObject {
             isLoading = false
             return true
         } catch {
+            // If the error is about a duplicate key, consider it a success
+            // This means the item is already a favorite
+            if error.localizedDescription.contains("duplicate key") {
+                print("Item is already a favorite - treating as success")
+                isLoading = false
+                return true
+            }
+            
+            // Otherwise, it's a real error
             isLoading = false
             self.error = "Failed to add to favorites: \(error.localizedDescription)"
+            print("Error adding to favorites: \(error)")
             return false
         }
     }
@@ -320,7 +332,14 @@ class AttractionViewModel: ObservableObject {
         }
     }
     
+    // In AttractionViewModel.swift, modify the isFavorite function:
     func isFavorite(attractionId: UUID) -> Bool {
+        // Add some debug info
+        print("Checking if \(attractionId) is a favorite")
+        print("Current favorites: \(favoriteAttractions.map { $0.id })")
+        
+        // Check if the attraction ID is in the user's favorites
         return favoriteAttractions.contains(where: { $0.id == attractionId })
     }
+
 }

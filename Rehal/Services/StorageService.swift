@@ -12,7 +12,7 @@ class StorageService: ObservableObject {
         self.supabase = supabase
     }
     
-    func uploadImage(_ image: UIImage, path: String, bucketId: String = "attraction-images") async -> String? {
+    func uploadImage(_ image: UIImage, path: String, bucketId: String = "attractions") async -> String? {
         isUploading = true
         error = nil
         
@@ -55,7 +55,7 @@ class StorageService: ObservableObject {
         }
     }
     
-    func deleteImage(path: String, bucketId: String = "attraction-images") async -> Bool {
+    func deleteImage(path: String, bucketId: String = "attractions") async -> Bool {
         do {
             try await supabase.storage
                 .from(bucketId)
