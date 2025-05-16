@@ -5,6 +5,7 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var selectedCategory: Category? = nil
     @State private var showLocationPermissionAlert = false
+    @State private var debounceSearchTask: Task<Void, Never>?
     @EnvironmentObject var attractionViewModel: AttractionViewModel
     @EnvironmentObject var authViewModel: AuthViewModel
     
@@ -64,7 +65,9 @@ struct HomeView: View {
                             Button(action: {
                                 // Refresh attractions
                                 Task {
-                                    await attractionViewModel.fetchAttractions()
+                                    await attractionViewModel.fetchAttractions(
+                                        category: selectedCategory?.rawValue
+                                    )
                                 }
                             }) {
                                 Image(systemName: "arrow.clockwise")
@@ -79,17 +82,27 @@ struct HomeView: View {
                                 .foregroundColor(.gray)
                             
                             TextField("Search attractions", text: $searchText)
-                                .onChange(of: searchText) { newValue in
-                                    // Debounce search
-                                    if !newValue.isEmpty && newValue.count > 2 {
-                                        Task {
-                                            await attractionViewModel.searchAttractions(query: newValue)
-                                        }
-                                    } else if newValue.isEmpty {
-                                        Task {
-                                            await attractionViewModel.fetchAttractions(
-                                                category: selectedCategory?.rawValue
-                                            )
+                                .onChange(of: searchText) { _, newValue in
+                                    // Cancel previous search task if it exists
+                                    debounceSearchTask?.cancel()
+                                    
+                                    // Create a new debounced search task
+                                    debounceSearchTask = Task {
+                                        // Wait a short time before searching to avoid too many requests
+                                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                                        
+                                        // Check if task was cancelled during sleep
+                                        if !Task.isCancelled {
+                                            if !newValue.isEmpty && newValue.count > 2 {
+                                                await attractionViewModel.searchAttractions(
+                                                    query: newValue,
+                                                    category: selectedCategory?.rawValue
+                                                )
+                                            } else if newValue.isEmpty {
+                                                await attractionViewModel.fetchAttractions(
+                                                    category: selectedCategory?.rawValue
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -131,14 +144,25 @@ struct HomeView: View {
                                         if selectedCategory == category {
                                             selectedCategory = nil
                                             Task {
-                                                await attractionViewModel.fetchAttractions()
+                                                if !searchText.isEmpty {
+                                                    await attractionViewModel.searchAttractions(query: searchText)
+                                                } else {
+                                                    await attractionViewModel.fetchAttractions()
+                                                }
                                             }
                                         } else {
                                             selectedCategory = category
                                             Task {
-                                                await attractionViewModel.fetchAttractions(
-                                                    category: category.rawValue
-                                                )
+                                                if !searchText.isEmpty {
+                                                    await attractionViewModel.searchAttractions(
+                                                        query: searchText,
+                                                        category: category.rawValue
+                                                    )
+                                                } else {
+                                                    await attractionViewModel.fetchAttractions(
+                                                        category: category.rawValue
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -177,9 +201,16 @@ struct HomeView: View {
                                 
                                 Button("Try Again") {
                                     Task {
-                                        await attractionViewModel.fetchAttractions(
-                                            category: selectedCategory?.rawValue
-                                        )
+                                        if !searchText.isEmpty {
+                                            await attractionViewModel.searchAttractions(
+                                                query: searchText,
+                                                category: selectedCategory?.rawValue
+                                            )
+                                        } else {
+                                            await attractionViewModel.fetchAttractions(
+                                                category: selectedCategory?.rawValue
+                                            )
+                                        }
                                     }
                                 }
                                 .padding(.vertical, 8)
@@ -226,28 +257,13 @@ struct HomeView: View {
                             .padding(.horizontal)
                         }
                     }
-                    
-                    // Debug information
-//                    #if DEBUG
-//                    VStack(alignment: .leading, spacing: 8) {
-//                        Text("Debug Info")
-//                            .font(.headline)
-//                        
-//                        Text("Attraction count: \(attractionViewModel.attractions.count)")
-//                        Text("Selected category: \(selectedCategory?.rawValue ?? "None")")
-//                        Text("User logged in: \(authViewModel.isAuthenticated ? "Yes" : "No")")
-//                    }
-//                    .padding()
-//                    .background(Color(.systemGray6))
-//                    .cornerRadius(8)
-//                    .padding(.horizontal)
-//                    #endif
                 }
                 .padding(.vertical)
             }
             .navigationBarHidden(true)
             .onAppear {
                 Task {
+                    print("HomeView appeared, fetching attractions")
                     // Double check if we have attractions loaded
                     if attractionViewModel.attractions.isEmpty {
                         await attractionViewModel.fetchAttractions()
@@ -377,8 +393,6 @@ struct CategoryChip: View {
         }
     }
 }
-
-
 
 // Extension for rounded specific corners
 extension View {

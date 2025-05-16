@@ -7,6 +7,9 @@ class AttractionViewModel: ObservableObject {
     @Published var favoriteAttractions: [Attraction] = []
     @Published var isLoading = false
     @Published var error: String?
+    @Published var searchQuery: String = ""
+    @Published var selectedCategory: String?
+    @Published var attractionRatings: [UUID: Double] = [:]
     
     public let supabase: SupabaseClient
     
@@ -30,84 +33,8 @@ class AttractionViewModel: ObservableObject {
             let response = try await query.execute()
             print("Fetch response received")
             
-            // Check what we're getting back
-            print("Response data type: \(type(of: response.data))")
-            print("Response data: \(String(describing: response.data))")
-            
-            // Handle the response as raw Data
-            if let responseData = response.data as? Data {
-                do {
-                    // Decode the JSON data
-                    let jsonObject = try JSONSerialization.jsonObject(with: responseData, options: [])
-                    print("JSON object type: \(type(of: jsonObject))")
-                    
-                    // Check if it's an array of attractions
-                    if let attractionsArray = jsonObject as? [[String: Any]] {
-                        print("Found \(attractionsArray.count) attractions in JSON array")
-                        
-                        let decoder = JSONDecoder()
-                        decoder.dateDecodingStrategy = .iso8601
-                        
-                        var loadedAttractions: [Attraction] = []
-                        
-                        for (index, json) in attractionsArray.enumerated() {
-                            do {
-                                let jsonData = try JSONSerialization.data(withJSONObject: json)
-                                if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
-                                    loadedAttractions.append(attraction)
-                                    print("Successfully decoded attraction: \(attraction.name)")
-                                } else {
-                                    print("Failed to decode attraction at index \(index)")
-                                }
-                            } catch {
-                                print("Error processing attraction at index \(index): \(error)")
-                            }
-                        }
-                        
-                        self.attractions = loadedAttractions
-                        print("Successfully loaded \(loadedAttractions.count) attractions")
-                    }
-                    // It might be in a nested structure like {"data": [...]}
-                    else if let jsonDict = jsonObject as? [String: Any],
-                            let attractionsArray = jsonDict["data"] as? [[String: Any]] {
-                        print("Found \(attractionsArray.count) attractions in nested data field")
-                        
-                        let decoder = JSONDecoder()
-                        decoder.dateDecodingStrategy = .iso8601
-                        
-                        var loadedAttractions: [Attraction] = []
-                        
-                        for (index, json) in attractionsArray.enumerated() {
-                            do {
-                                let jsonData = try JSONSerialization.data(withJSONObject: json)
-                                if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
-                                    loadedAttractions.append(attraction)
-                                    print("Successfully decoded attraction: \(attraction.name)")
-                                } else {
-                                    print("Failed to decode attraction at index \(index)")
-                                }
-                            } catch {
-                                print("Error processing attraction at index \(index): \(error)")
-                            }
-                        }
-                        
-                        self.attractions = loadedAttractions
-                        print("Successfully loaded \(loadedAttractions.count) attractions")
-                    } else {
-                        print("JSON structure not recognized: \(jsonObject)")
-                        self.attractions = []
-                        self.error = "Data format not recognized"
-                    }
-                } catch {
-                    print("Error parsing JSON data: \(error)")
-                    self.attractions = []
-                    self.error = "Error parsing response data"
-                }
-            } else {
-                print("Response data is not of type Data")
-                self.attractions = []
-                self.error = "Unexpected response format"
-            }
+            // Process the response
+            processResponse(response)
             
             isLoading = false
         } catch {
@@ -136,27 +63,8 @@ class AttractionViewModel: ObservableObject {
             
             let response = try await supabaseQuery.execute()
             
-            if let jsonArray = response.data as? [[String: Any]] {
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                
-                var loadedAttractions: [Attraction] = []
-                
-                for json in jsonArray {
-                    do {
-                        let jsonData = try JSONSerialization.data(withJSONObject: json)
-                        if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
-                            loadedAttractions.append(attraction)
-                        }
-                    } catch {
-                        print("Error decoding attraction: \(error)")
-                    }
-                }
-                
-                self.attractions = loadedAttractions
-            } else {
-                self.attractions = []
-            }
+            // Process the response
+            processResponse(response)
             
             isLoading = false
         } catch {
@@ -165,57 +73,47 @@ class AttractionViewModel: ObservableObject {
         }
     }
     
+    // Changed to a more generic method without specific type annotation
+    private func processResponse(_ response: Any) {
+        // Extract data from the response
+        guard let responseDict = response as? [String: Any],
+              let data = responseDict["data"] as? [[String: Any]] else {
+            self.attractions = []
+            return
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+        var loadedAttractions: [Attraction] = []
+        
+        for json in data {
+            do {
+                let jsonData = try JSONSerialization.data(withJSONObject: json)
+                if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
+                    loadedAttractions.append(attraction)
+                }
+            } catch {
+                print("Error decoding attraction: \(error)")
+            }
+        }
+        
+        self.attractions = loadedAttractions
+    }
+    
     func fetchNearbyAttractions(latitude: Double, longitude: Double, radiusInKm: Double = 5.0) async {
         isLoading = true
         error = nil
         
-        // Using PostGIS (if available in your Supabase instance) for location-based queries
-        // If not, you might need to calculate distances on the client side
         do {
-            // This assumes your Supabase has PostGIS enabled and your table has a geo_point column
-            // If not, you'll need to fetch all attractions and filter them locally
-            let query = """
-                SELECT *, 
-                ST_Distance(
-                    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(\(longitude), \(latitude)), 4326)::geography
-                ) as distance
-                FROM attractions
-                WHERE ST_DWithin(
-                    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(\(longitude), \(latitude)), 4326)::geography,
-                    \(radiusInKm * 1000)
-                )
-                ORDER BY distance
-            """
-            
             let response = try await supabase.rpc("nearby_attractions", params: [
                 "user_lng": longitude,
                 "user_lat": latitude,
                 "radius_km": radiusInKm
             ]).execute()
             
-            if let jsonArray = response.data as? [[String: Any]] {
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                
-                var loadedAttractions: [Attraction] = []
-                
-                for json in jsonArray {
-                    do {
-                        let jsonData = try JSONSerialization.data(withJSONObject: json)
-                        if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
-                            loadedAttractions.append(attraction)
-                        }
-                    } catch {
-                        print("Error decoding attraction: \(error)")
-                    }
-                }
-                
-                self.attractions = loadedAttractions
-            } else {
-                self.attractions = []
-            }
+            // Process the response with the generic method
+            processResponse(response)
             
             isLoading = false
         } catch {
@@ -238,36 +136,52 @@ class AttractionViewModel: ObservableObject {
                 .eq("user_id", value: userId.uuidString)
                 .execute()
             
-            var attractionIds: [String] = []
-            
-            if let favoritesData = favoritesResponse.data as? [[String: Any]] {
-                attractionIds = favoritesData.compactMap { $0["attraction_id"] as? String }
+            // Use the generic method to extract favorite IDs
+            guard let responseDict = favoritesResponse as? [String: Any],
+                  let favoritesData = responseDict["data"] as? [[String: Any]] else {
+                self.favoriteAttractions = []
+                isLoading = false
+                return
             }
+            
+            let attractionIds = favoritesData.compactMap { $0["attraction_id"] as? String }
+            
+            print("Found \(attractionIds.count) favorite attraction IDs")
             
             // If we have favorite attraction IDs, fetch the actual attractions
             if !attractionIds.isEmpty {
                 var loadedFavorites: [Attraction] = []
                 
-                // Fetch each attraction individually
-                for id in attractionIds {
-                    let attractionResponse = try await supabase.from("attractions")
-                        .select()
-                        .eq("id", value: id)
-                        .execute()
-                    
-                    if let attractionData = attractionResponse.data as? [[String: Any]],
-                       let firstAttraction = attractionData.first {
-                        let decoder = JSONDecoder()
-                        decoder.dateDecodingStrategy = .iso8601
-                        
-                        let jsonData = try JSONSerialization.data(withJSONObject: firstAttraction)
+                // Fetch attractions in one batch if possible
+                let attractionsResponse = try await supabase.from("attractions")
+                    .select()
+                    .in("id", values: attractionIds)
+                    .execute()
+                
+                // Use the generic method to extract attractions
+                guard let responseDict = attractionsResponse as? [String: Any],
+                      let attractionsData = responseDict["data"] as? [[String: Any]] else {
+                    self.favoriteAttractions = []
+                    isLoading = false
+                    return
+                }
+                
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                
+                for attractionData in attractionsData {
+                    do {
+                        let jsonData = try JSONSerialization.data(withJSONObject: attractionData)
                         if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
                             loadedFavorites.append(attraction)
                         }
+                    } catch {
+                        print("Error decoding favorite attraction: \(error)")
                     }
                 }
                 
                 self.favoriteAttractions = loadedFavorites
+                print("Loaded \(loadedFavorites.count) favorite attractions")
             } else {
                 self.favoriteAttractions = []
             }
@@ -276,6 +190,7 @@ class AttractionViewModel: ObservableObject {
         } catch {
             isLoading = false
             self.error = "Failed to fetch favorites: \(error.localizedDescription)"
+            print("Error fetching favorites: \(error)")
         }
     }
     
@@ -284,8 +199,6 @@ class AttractionViewModel: ObservableObject {
         error = nil
         
         do {
-            // Simply try to insert the favorite
-            // If there's a duplicate, it will throw an error that contains "duplicate key"
             try await supabase.from("favorites")
                 .insert([
                     "user_id": userId.uuidString,
@@ -294,17 +207,15 @@ class AttractionViewModel: ObservableObject {
                 .execute()
             
             isLoading = false
-            return true
-        } catch {
-            // If the error is about a duplicate key, consider it a success
-            // This means the item is already a favorite
-            if error.localizedDescription.contains("duplicate key") {
-                print("Item is already a favorite - treating as success")
-                isLoading = false
-                return true
+            
+            // Update local favorites list
+            if let attraction = attractions.first(where: { $0.id == attractionId }),
+               !favoriteAttractions.contains(where: { $0.id == attractionId }) {
+                favoriteAttractions.append(attraction)
             }
             
-            // Otherwise, it's a real error
+            return true
+        } catch {
             isLoading = false
             self.error = "Failed to add to favorites: \(error.localizedDescription)"
             print("Error adding to favorites: \(error)")
@@ -324,22 +235,46 @@ class AttractionViewModel: ObservableObject {
                 .execute()
             
             isLoading = false
+            
+            // Update local favorites list
+            favoriteAttractions.removeAll(where: { $0.id == attractionId })
+            
             return true
         } catch {
             isLoading = false
             self.error = "Failed to remove from favorites: \(error.localizedDescription)"
+            print("Error removing from favorites: \(error)")
             return false
         }
     }
     
-    // In AttractionViewModel.swift, modify the isFavorite function:
     func isFavorite(attractionId: UUID) -> Bool {
-        // Add some debug info
-        print("Checking if \(attractionId) is a favorite")
-        print("Current favorites: \(favoriteAttractions.map { $0.id })")
-        
-        // Check if the attraction ID is in the user's favorites
         return favoriteAttractions.contains(where: { $0.id == attractionId })
     }
-
+    
+    // Calculate and cache ratings for attractions
+    func updateRatings(reviews: [Review]) {
+        var ratingsByAttraction: [UUID: [Int]] = [:]
+        
+        // Group reviews by attraction
+        for review in reviews {
+            if ratingsByAttraction[review.attractionId] == nil {
+                ratingsByAttraction[review.attractionId] = []
+            }
+            ratingsByAttraction[review.attractionId]?.append(review.rating)
+        }
+        
+        // Calculate average ratings
+        for (attractionId, ratings) in ratingsByAttraction {
+            if !ratings.isEmpty {
+                let average = Double(ratings.reduce(0, +)) / Double(ratings.count)
+                attractionRatings[attractionId] = average
+            }
+        }
+    }
+    
+    // Get average rating for an attraction
+    func averageRating(for attractionId: UUID) -> Double {
+        return attractionRatings[attractionId] ?? 0.0
+    }
 }
