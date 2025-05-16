@@ -30,11 +30,62 @@ class AttractionViewModel: ObservableObject {
                 query = query.eq("category", value: category)
             }
             
+            // Execute the query
             let response = try await query.execute()
             print("Fetch response received")
             
-            // Process the response
-            processResponse(response)
+            // Get the data from response (it's not optional)
+            let data = response.data
+            print("Data size: \(data.count) bytes")
+            
+            do {
+                // Parse the JSON data directly
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                
+                // Try to decode the raw data into attractions array
+                let attractions = try decoder.decode([Attraction].self, from: data)
+                print("Successfully decoded \(attractions.count) attractions")
+                self.attractions = attractions
+            } catch {
+                print("Error decoding JSON data: \(error)")
+                
+                // Create a new decoder for fallback parsing
+                let fallbackDecoder = JSONDecoder()
+                fallbackDecoder.dateDecodingStrategy = .iso8601
+                
+                // Fallback: try to parse as dictionary array
+                if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    print("Parsed \(jsonArray.count) attractions as dictionaries")
+                    
+                    // Process each dictionary manually
+                    var loadedAttractions: [Attraction] = []
+                    
+                    for (index, json) in jsonArray.enumerated() {
+                        do {
+                            // Print sample of what we're trying to parse
+                            if index == 0 {
+                                print("First attraction data: \(json)")
+                            }
+                            
+                            let jsonData = try JSONSerialization.data(withJSONObject: json)
+                            let attraction = try fallbackDecoder.decode(Attraction.self, from: jsonData)
+                            loadedAttractions.append(attraction)
+                        } catch {
+                            print("Error decoding attraction at index \(index): \(error)")
+                        }
+                    }
+                    
+                    self.attractions = loadedAttractions
+                    print("Manually processed \(loadedAttractions.count) attractions")
+                } else {
+                    print("Failed to parse data as JSON array")
+                    // Try to see the raw JSON string
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        print("Raw JSON (first 200 chars): \(String(jsonString.prefix(200)))...")
+                    }
+                }
+            }
             
             isLoading = false
         } catch {
@@ -75,9 +126,40 @@ class AttractionViewModel: ObservableObject {
     
     // Changed to a more generic method without specific type annotation
     private func processResponse(_ response: Any) {
-        // Extract data from the response
-        guard let responseDict = response as? [String: Any],
-              let data = responseDict["data"] as? [[String: Any]] else {
+        // Check if we received a PostgrestResponse
+        print("Response type: \(type(of: response))")
+        
+        // Try to extract the data based on the response type
+        var jsonArray: [[String: Any]] = []
+        
+        if let postgrestResponse = response as? PostgrestResponse<[[String: Any]]> {
+            // This is the expected type for select queries with the Supabase Swift SDK v2
+            jsonArray = postgrestResponse.value ?? []
+            print("Extracted \(jsonArray.count) items from PostgrestResponse")
+        } else if let responseDict = response as? [String: Any],
+                  let data = responseDict["data"] as? [[String: Any]] {
+            // Legacy format (for backward compatibility)
+            jsonArray = data
+            print("Extracted \(jsonArray.count) items from response dictionary")
+        } else if let responseData = (response as? PostgrestResponse<Any>)?.data {
+            // Try to get raw data from response and parse it manually
+            if let jsonData = responseData as? Data,
+               let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
+                jsonArray = parsed
+                print("Parsed \(jsonArray.count) items from raw data")
+            } else {
+                print("Failed to parse data from response")
+            }
+        } else {
+            // Print detailed info about the response for debugging
+            print("Unknown response format: \(response)")
+            print("Response structure: \(Mirror(reflecting: response).children.map { ($0.label ?? "unknown", type(of: $0.value)) })")
+            self.attractions = []
+            return
+        }
+        
+        if jsonArray.isEmpty {
+            print("No attractions found in the response")
             self.attractions = []
             return
         }
@@ -87,17 +169,28 @@ class AttractionViewModel: ObservableObject {
         
         var loadedAttractions: [Attraction] = []
         
-        for json in data {
+        for (index, json) in jsonArray.enumerated() {
             do {
-                let jsonData = try JSONSerialization.data(withJSONObject: json)
-                if let attraction = try? decoder.decode(Attraction.self, from: jsonData) {
-                    loadedAttractions.append(attraction)
+                // Print the raw JSON for debugging
+                if let jsonData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    print("Processing attraction \(index): \(jsonString)")
                 }
+                
+                let jsonData = try JSONSerialization.data(withJSONObject: json)
+                let attraction = try decoder.decode(Attraction.self, from: jsonData)
+                loadedAttractions.append(attraction)
+                print("Successfully decoded attraction: \(attraction.name)")
             } catch {
-                print("Error decoding attraction: \(error)")
+                print("Error decoding attraction at index \(index): \(error)")
+                if let jsonData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    print("Failed JSON: \(jsonString)")
+                }
             }
         }
         
+        print("Loaded \(loadedAttractions.count) attractions")
         self.attractions = loadedAttractions
     }
     

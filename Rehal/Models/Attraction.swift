@@ -28,7 +28,6 @@ struct Attraction: Identifiable, Codable {
         case updatedAt = "updated_at"
     }
     
-    // Add custom initialization to handle potential issues with UUID string parsing
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
@@ -45,7 +44,15 @@ struct Attraction: Identifiable, Codable {
         
         // Decode other properties
         name = try container.decode(String.self, forKey: .name)
-        description = try container.decode(String.self, forKey: .category)
+        
+        // Handle description which might be missing or null
+        if let desc = try? container.decode(String.self, forKey: .description) {
+            description = desc
+        } else {
+            description = "No description available"  // Default value
+            print("Missing description for attraction")
+        }
+        
         category = try container.decode(String.self, forKey: .category)
         subcategory = try container.decodeIfPresent(String.self, forKey: .subcategory)
         address = try container.decodeIfPresent(String.self, forKey: .address)
@@ -54,19 +61,44 @@ struct Attraction: Identifiable, Codable {
         images = try container.decodeIfPresent([String].self, forKey: .images)
         priceLevel = try container.decodeIfPresent(Int.self, forKey: .priceLevel)
         
-        // Handle dates which might need special decoding
-        if let dateString = try? container.decode(String.self, forKey: .createdAt),
-           let date = ISO8601DateFormatter().date(from: dateString) {
-            createdAt = date
+        // Flexible date handling
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        // Try multiple date formats for created_at
+        if let dateString = try? container.decode(String.self, forKey: .createdAt) {
+            if let date = dateFormatter.date(from: dateString) {
+                createdAt = date
+            } else {
+                // Try without fractional seconds
+                dateFormatter.formatOptions = [.withInternetDateTime]
+                if let date = dateFormatter.date(from: dateString) {
+                    createdAt = date
+                } else {
+                    print("Failed to parse date: \(dateString), using current date")
+                    createdAt = Date()
+                }
+            }
         } else {
-            createdAt = try container.decode(Date.self, forKey: .createdAt)
+            createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         }
         
-        if let dateString = try? container.decode(String.self, forKey: .updatedAt),
-           let date = ISO8601DateFormatter().date(from: dateString) {
-            updatedAt = date
+        // Similar approach for updated_at
+        if let dateString = try? container.decode(String.self, forKey: .updatedAt) {
+            if let date = dateFormatter.date(from: dateString) {
+                updatedAt = date
+            } else {
+                // Try without fractional seconds
+                dateFormatter.formatOptions = [.withInternetDateTime]
+                if let date = dateFormatter.date(from: dateString) {
+                    updatedAt = date
+                } else {
+                    print("Failed to parse date: \(dateString), using current date")
+                    updatedAt = Date()
+                }
+            }
         } else {
-            updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+            updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         }
     }
     
@@ -88,7 +120,3 @@ struct Attraction: Identifiable, Codable {
         self.updatedAt = updatedAt
     }
 }
-
-
-
-
