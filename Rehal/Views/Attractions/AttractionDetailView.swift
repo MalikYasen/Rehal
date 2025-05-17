@@ -522,6 +522,20 @@ struct AttractionDetailView: View {
 struct ReviewRow: View {
     let review: Review
     
+    // Supabase storage base URL
+    private let storageBaseUrl = "https://vulhxauybqrvunqkazty.supabase.co/storage/v1/object/public/rehal-storage/reviews/"
+    
+    // Function to get proper URL for image
+    private func getFullImageUrl(_ imageUrl: String) -> URL? {
+        // If it's already a full URL that starts with http, use it directly
+        if imageUrl.starts(with: "http") {
+            return URL(string: imageUrl)
+        }
+        
+        // Otherwise, append the filename to the base URL
+        return URL(string: storageBaseUrl + imageUrl)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -566,36 +580,64 @@ struct ReviewRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(0..<images.count, id: \.self) { index in
-                            AsyncImage(url: URL(string: images[index])) { phase in
-                                switch phase {
-                                case .empty:
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 80, height: 80)
-                                        .cornerRadius(8)
-                                        .overlay(ProgressView())
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 80, height: 80)
-                                        .cornerRadius(8)
-                                        .clipped()
-                                case .failure:
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 80, height: 80)
-                                        .cornerRadius(8)
-                                        .overlay(
+                            if let url = getFullImageUrl(images[index]) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(width: 80, height: 80)
+                                            .cornerRadius(8)
+                                            .overlay(ProgressView())
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 80, height: 80)
+                                            .cornerRadius(8)
+                                            .clipped()
+                                    case .failure(let error):
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(width: 80, height: 80)
+                                            .cornerRadius(8)
+                                            .overlay(
+                                                VStack {
+                                                    Image(systemName: "photo")
+                                                        .foregroundColor(.gray)
+                                                    Text("Error")
+                                                        .font(.system(size: 8))
+                                                        .foregroundColor(.gray)
+                                                }
+                                            )
+                                            .onAppear {
+                                                print("Failed to load review image: \(url) - \(error.localizedDescription)")
+                                            }
+                                    @unknown default:
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(width: 80, height: 80)
+                                            .cornerRadius(8)
+                                    }
+                                }
+                                .id(url) // Use id to force refresh when URL changes
+                            } else {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 80, height: 80)
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        VStack {
                                             Image(systemName: "photo")
                                                 .foregroundColor(.gray)
-                                        )
-                                @unknown default:
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 80, height: 80)
-                                        .cornerRadius(8)
-                                }
+                                            Text("Invalid URL")
+                                                .font(.system(size: 8))
+                                                .foregroundColor(.gray)
+                                        }
+                                    )
+                                    .onAppear {
+                                        print("Invalid review image URL: \(images[index])")
+                                    }
                             }
                         }
                     }

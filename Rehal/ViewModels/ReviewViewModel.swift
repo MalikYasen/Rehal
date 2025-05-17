@@ -20,52 +20,272 @@ class ReviewViewModel: ObservableObject {
             }
         }
     }
+    
     func fetchReviews(for attractionId: UUID) async {
         isLoading = true
         error = nil
         reviews = [] // Start with empty array
         
         do {
+            print("Fetching reviews for attraction: \(attractionId.uuidString)")
+            
             // Get raw reviews data
             let response = try await supabase.from("reviews")
                 .select("*")
                 .eq("attraction_id", value: attractionId.uuidString)
                 .execute()
             
-            guard let jsonArray = response.data as? [[String: Any]] else {
-                print("Unexpected response format or empty data")
-                isLoading = false
-                return
+            print("Reviews fetch response received: \(response)")
+            
+            // Extract data from response
+            let responseData = response.data
+            
+            // Debug the data
+            if let dataSize = (responseData as? Data)?.count {
+                print("Response data is Data type with size: \(dataSize) bytes")
+            } else {
+                print("Response data is not Data type: \(type(of: responseData))")
             }
             
-            // We got valid data, try to decode it
-            do {
-                // Convert dictionary to JSON data
-                let jsonData = try JSONSerialization.data(withJSONObject: jsonArray)
-                
-                // Decode the JSON data
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                self.reviews = try decoder.decode([Review].self, from: jsonData)
-                
-                // Update user reviews cache
-                if let userId = currentUserId {
-                    for review in self.reviews where review.userId == userId {
-                        userReviews[review.attractionId] = review
+            // Convert Data to JSON
+            if let data = responseData as? Data {
+                do {
+                    let jsonArray = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]]
+                    print("Successfully decoded JSON data. Found \(jsonArray?.count ?? 0) reviews")
+                    
+                    guard let jsonArray = jsonArray else {
+                        print("Failed to decode JSON array from data")
+                        isLoading = false
+                        return
                     }
+                    
+                    // Process manually for more reliable parsing
+                    var fetchedReviews: [Review] = []
+                    
+                    for reviewData in jsonArray {
+                        do {
+                            print("Processing review: \(reviewData["id"] ?? "unknown id")")
+                            
+                            // ID
+                            guard let idString = reviewData["id"] as? String,
+                                  let id = UUID(uuidString: idString) else {
+                                print("Invalid review ID format")
+                                continue
+                            }
+                            
+                            // Attraction ID
+                            guard let attractionIdStr = reviewData["attraction_id"] as? String,
+                                  let attrId = UUID(uuidString: attractionIdStr) else {
+                                print("Invalid attraction ID format")
+                                continue
+                            }
+                            
+                            // User ID
+                            guard let userIdStr = reviewData["user_id"] as? String,
+                                  let userId = UUID(uuidString: userIdStr) else {
+                                print("Invalid user ID format")
+                                continue
+                            }
+                            
+                            // Rating
+                            let rating: Int
+                            if let ratingInt = reviewData["rating"] as? Int {
+                                rating = ratingInt
+                            } else if let ratingDouble = reviewData["rating"] as? Double {
+                                rating = Int(ratingDouble)
+                            } else if let ratingStr = reviewData["rating"] as? String,
+                                      let ratingInt = Int(ratingStr) {
+                                rating = ratingInt
+                            } else {
+                                print("Invalid rating format")
+                                rating = 3 // Default
+                            }
+                            
+                            // Comment
+                            let comment = reviewData["comment"] as? String
+                            
+                            // Images
+                            let images: [String]?
+                            if let imagesArray = reviewData["images"] as? [String] {
+                                images = imagesArray
+                            } else {
+                                images = nil
+                            }
+                            
+                            // Created At
+                            var createdAt = Date()
+                            if let createdAtStr = reviewData["created_at"] as? String {
+                                let formatter = ISO8601DateFormatter()
+                                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                                if let date = formatter.date(from: createdAtStr) {
+                                    createdAt = date
+                                } else {
+                                    // Try alternative format without fractional seconds
+                                    formatter.formatOptions = [.withInternetDateTime]
+                                    if let date = formatter.date(from: createdAtStr) {
+                                        createdAt = date
+                                    } else {
+                                        print("Failed to parse date: \(createdAtStr)")
+                                    }
+                                }
+                            }
+                            
+                            // Create review object
+                            let review = Review(
+                                id: id,
+                                attractionId: attrId,
+                                userId: userId,
+                                rating: rating,
+                                comment: comment,
+                                images: images,
+                                createdAt: createdAt,
+                                userName: nil // We'll fetch user names separately if needed
+                            )
+                            
+                            fetchedReviews.append(review)
+                            
+                            // Store user reviews for quick access
+                            if let currentUserId = self.currentUserId, review.userId == currentUserId {
+                                userReviews[review.attractionId] = review
+                            }
+                        } catch {
+                            print("Error processing individual review: \(error)")
+                        }
+                    }
+                    
+                    // Update reviews array
+                    await MainActor.run {
+                        self.reviews = fetchedReviews
+                        print("Successfully loaded \(fetchedReviews.count) reviews")
+                    }
+                } catch {
+                    print("JSON decoding failed: \(error)")
+                    self.error = "Failed to decode reviews data: \(error.localizedDescription)"
                 }
-            } catch {
-                self.error = "Failed to parse reviews: \(error.localizedDescription)"
-                print("Parse error details: \(error)")
+            } else {
+                // If it's not Data, try to cast as JSON array directly
+                if let jsonArray = responseData as? [[String: Any]] {
+                    print("Response was already in JSON format. Found \(jsonArray.count) reviews")
+                    
+                    // Process manually for more reliable parsing
+                    var fetchedReviews: [Review] = []
+                    
+                    for reviewData in jsonArray {
+                        do {
+                            print("Processing review: \(reviewData["id"] ?? "unknown id")")
+                            
+                            // ID
+                            guard let idString = reviewData["id"] as? String,
+                                  let id = UUID(uuidString: idString) else {
+                                print("Invalid review ID format")
+                                continue
+                            }
+                            
+                            // Attraction ID
+                            guard let attractionIdStr = reviewData["attraction_id"] as? String,
+                                  let attrId = UUID(uuidString: attractionIdStr) else {
+                                print("Invalid attraction ID format")
+                                continue
+                            }
+                            
+                            // User ID
+                            guard let userIdStr = reviewData["user_id"] as? String,
+                                  let userId = UUID(uuidString: userIdStr) else {
+                                print("Invalid user ID format")
+                                continue
+                            }
+                            
+                            // Rating
+                            let rating: Int
+                            if let ratingInt = reviewData["rating"] as? Int {
+                                rating = ratingInt
+                            } else if let ratingDouble = reviewData["rating"] as? Double {
+                                rating = Int(ratingDouble)
+                            } else if let ratingStr = reviewData["rating"] as? String,
+                                      let ratingInt = Int(ratingStr) {
+                                rating = ratingInt
+                            } else {
+                                print("Invalid rating format")
+                                rating = 3 // Default
+                            }
+                            
+                            // Comment
+                            let comment = reviewData["comment"] as? String
+                            
+                            // Images
+                            let images: [String]?
+                            if let imagesArray = reviewData["images"] as? [String] {
+                                images = imagesArray
+                            } else {
+                                images = nil
+                            }
+                            
+                            // Created At
+                            var createdAt = Date()
+                            if let createdAtStr = reviewData["created_at"] as? String {
+                                let formatter = ISO8601DateFormatter()
+                                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                                if let date = formatter.date(from: createdAtStr) {
+                                    createdAt = date
+                                } else {
+                                    // Try alternative format without fractional seconds
+                                    formatter.formatOptions = [.withInternetDateTime]
+                                    if let date = formatter.date(from: createdAtStr) {
+                                        createdAt = date
+                                    } else {
+                                        print("Failed to parse date: \(createdAtStr)")
+                                    }
+                                }
+                            }
+                            
+                            // Create review object
+                            let review = Review(
+                                id: id,
+                                attractionId: attrId,
+                                userId: userId,
+                                rating: rating,
+                                comment: comment,
+                                images: images,
+                                createdAt: createdAt,
+                                userName: nil // We'll fetch user names separately if needed
+                            )
+                            
+                            fetchedReviews.append(review)
+                            
+                            // Store user reviews for quick access
+                            if let currentUserId = self.currentUserId, review.userId == currentUserId {
+                                userReviews[review.attractionId] = review
+                            }
+                        } catch {
+                            print("Error processing individual review: \(error)")
+                        }
+                    }
+                    
+                    // Update reviews array
+                    await MainActor.run {
+                        self.reviews = fetchedReviews
+                        print("Successfully loaded \(fetchedReviews.count) reviews")
+                    }
+                } else {
+                    print("Unexpected response format: \(String(describing: responseData))")
+                    
+                    // Debug output to understand what we're getting
+                    print("Response type: \(type(of: responseData))")
+                    if let dataStr = String(data: responseData as? Data ?? Data(), encoding: .utf8) {
+                        print("Response as string (first 200 chars): \(String(dataStr.prefix(200)))")
+                    }
+                    
+                    self.error = "Unexpected response format from server"
+                }
             }
         } catch {
             self.error = "Failed to fetch reviews: \(error.localizedDescription)"
-            print("Fetch error details: \(error)")
+            print("Reviews fetch error details: \(error)")
         }
         
         isLoading = false
     }
-       
+    
     // A more generic approach to process reviews response - now doesn't use async
     private func processReviewsResponse(_ response: Any, attractionId: UUID) {
         guard let responseDict = response as? [String: Any],
@@ -177,6 +397,7 @@ class ReviewViewModel: ObservableObject {
     }
     
     struct ReviewInput: Encodable {
+        let id: String
         let attraction_id: String
         let user_id: String
         let rating: Int
@@ -184,11 +405,12 @@ class ReviewViewModel: ObservableObject {
         let images: [String]?
         
         init(attractionId: UUID, userId: UUID, rating: Int, comment: String?, images: [String]?) {
+            self.id = UUID().uuidString
             self.attraction_id = attractionId.uuidString
             self.user_id = userId.uuidString
             self.rating = rating
             self.comment = comment
-            self.images = images
+            self.images = images ?? []
         }
     }
 
@@ -198,31 +420,23 @@ class ReviewViewModel: ObservableObject {
         error = nil
         
         do {
-            // Generate a UUID for the new review
-            let reviewId = UUID()
+            // Create an object using the ReviewInput struct with proper field names for Supabase
+            let reviewInput = ReviewInput(
+                attractionId: attractionId,
+                userId: userId,
+                rating: rating,
+                comment: comment,
+                images: images
+            )
             
-            // Create a dictionary with the correct structure
-            let reviewDict: [String: Any] = [
-                "id": reviewId.uuidString,
-                "attraction_id": attractionId.uuidString,
-                "user_id": userId.uuidString,
-                "rating": rating,
-                "comment": comment.replacingOccurrences(of: "\"", with: "\\\""),
-                "images": images ?? []
-            ]
-            
-            // Convert to proper JSON
-            let jsonData = try JSONSerialization.data(withJSONObject: reviewDict)
-            let jsonString = String(data: jsonData, encoding: .utf8)!
-            
-            // Use the proper insert method - this is critical
+            // Direct insert with the properly structured object
             try await supabase.from("reviews")
-                .insert(jsonString)
+                .insert(reviewInput)
                 .execute()
             
             // Create a local Review object to add it to our list immediately
             let newReview = Review(
-                id: reviewId,
+                id: UUID(uuidString: reviewInput.id)!,
                 attractionId: attractionId,
                 userId: userId,
                 rating: rating,
@@ -237,9 +451,6 @@ class ReviewViewModel: ObservableObject {
                 reviews.append(newReview)
                 userReviews[attractionId] = newReview
             }
-            
-            // We don't need to fetch reviews again since we've already added it locally
-            // This avoids potential issues with the fetch
             
             isLoading = false
             return true
