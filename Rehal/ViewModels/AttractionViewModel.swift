@@ -406,6 +406,31 @@ class AttractionViewModel: ObservableObject {
         }
     }
     
+    // Calculate and return the average rating for an attraction
+    func getAverageRating(for attractionId: UUID) -> Double {
+        // First check if we have a cached rating
+        if let cachedRating = attractionRatings[attractionId] {
+            return cachedRating
+        }
+        
+        // Otherwise, default to 0
+        return 0.0
+    }
+    
+    // Update the cached rating for an attraction
+    func updateRating(for attractionId: UUID, with reviews: [Review]) {
+        if reviews.isEmpty {
+            attractionRatings[attractionId] = 0.0
+            return
+        }
+        
+        let sum = reviews.reduce(0) { $0 + $1.rating }
+        let averageRating = Double(sum) / Double(reviews.count)
+        
+        // Cache the rating
+        attractionRatings[attractionId] = averageRating
+    }
+    
     // Get average rating for an attraction
     func averageRating(for attractionId: UUID) -> Double {
         return attractionRatings[attractionId] ?? 0.0

@@ -11,6 +11,14 @@ class ReviewViewModel: ObservableObject {
     private let supabase: SupabaseClient
     private var currentUserId: UUID? = nil
     
+    // Reference to attraction view model for updating ratings
+    private var attractionViewModel: AttractionViewModel?
+    
+    // Set the attraction view model reference
+    func setAttractionViewModel(_ viewModel: AttractionViewModel) {
+        attractionViewModel = viewModel
+    }
+    
     init(supabase: SupabaseClient) {
         self.supabase = supabase
         // Get the current user ID asynchronously
@@ -157,6 +165,9 @@ class ReviewViewModel: ObservableObject {
                     await MainActor.run {
                         self.reviews = fetchedReviews
                         print("Successfully loaded \(fetchedReviews.count) reviews")
+                        
+                        // Update attraction rating
+                        self.attractionViewModel?.updateRating(for: attractionId, with: fetchedReviews)
                     }
                 } catch {
                     print("JSON decoding failed: \(error)")
@@ -265,6 +276,9 @@ class ReviewViewModel: ObservableObject {
                     await MainActor.run {
                         self.reviews = fetchedReviews
                         print("Successfully loaded \(fetchedReviews.count) reviews")
+                        
+                        // Update attraction rating
+                        self.attractionViewModel?.updateRating(for: attractionId, with: fetchedReviews)
                     }
                 } else {
                     print("Unexpected response format: \(String(describing: responseData))")

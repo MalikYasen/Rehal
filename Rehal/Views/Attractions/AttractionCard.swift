@@ -87,7 +87,7 @@ struct AttractionCard: View {
                         .font(.system(size: 12))
                         .foregroundColor(.yellow)
                     
-                    Text("4.5")  // This would be calculated from reviews
+                    Text(String(format: "%.1f", attractionViewModel.getAverageRating(for: attraction.id)))
                         .font(.caption)
                         .foregroundColor(.primary)
                 }

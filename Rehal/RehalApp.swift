@@ -24,6 +24,9 @@ struct RehalApp: App {
         let reviewVM = ReviewViewModel(supabase: supabaseClient)
         let storageVM = StorageService(supabase: supabaseClient)
         
+        // Connect ReviewViewModel to AttractionViewModel for rating updates
+        reviewVM.setAttractionViewModel(attractionVM)
+        
         // Initialize the @StateObjects
         _authViewModel = StateObject(wrappedValue: authVM)
         _attractionViewModel = StateObject(wrappedValue: attractionVM)
