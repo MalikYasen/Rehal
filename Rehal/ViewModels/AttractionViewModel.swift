@@ -227,6 +227,19 @@ class AttractionViewModel: ObservableObject {
         }
     }
     
+    // Struct for sending favorite data to Supabase
+    struct FavoriteInput: Encodable {
+        let id: String
+        let user_id: String
+        let attraction_id: String
+        
+        init(userId: UUID, attractionId: UUID) {
+            self.id = UUID().uuidString
+            self.user_id = userId.uuidString
+            self.attraction_id = attractionId.uuidString
+        }
+    }
+    
     func addToFavorites(attractionId: UUID, userId: UUID) async -> Bool {
         isLoading = true
         error = nil
@@ -249,18 +262,12 @@ class AttractionViewModel: ObservableObject {
                 return true
             }
             
-            // If we get here, the favorite doesn't exist yet, so we create it with a generated UUID
-            let favoriteId = UUID()
-            let jsonData = try JSONSerialization.data(withJSONObject: [
-                "id": favoriteId.uuidString,
-                "user_id": userId.uuidString,
-                "attraction_id": attractionId.uuidString
-            ])
+            // If we get here, the favorite doesn't exist yet, so we create it with a proper Encodable struct
+            let favoriteInput = FavoriteInput(userId: userId, attractionId: attractionId)
             
-            let jsonString = String(data: jsonData, encoding: .utf8)!
-            
+            // Use the proper Supabase insert method
             try await supabase.from("favorites")
-                .insert(jsonString)
+                .insert(favoriteInput)
                 .execute()
             
             // Update local list
@@ -329,6 +336,10 @@ class AttractionViewModel: ObservableObject {
         return favoriteAttractions.contains(where: { $0.id == attractionId })
     }
     
+    func checkIfFavorite(attractionId: String, userId: UUID) async -> Bool {
+        return await checkIfFavorite(attractionId: UUID(uuidString: attractionId) ?? UUID(), userId: userId)
+    }
+    
     func checkIfFavorite(attractionId: UUID, userId: UUID) async -> Bool {
         print("Checking if attraction \(attractionId) is a favorite for user \(userId)")
         
@@ -353,36 +364,19 @@ class AttractionViewModel: ObservableObject {
             if let jsonString = String(data: data, encoding: .utf8) {
                 print("Favorite check response: \(jsonString)")
                 
-                // If the JSON contains the attraction ID, it's likely a favorite
-                // This is a simple check that works regardless of the exact response format
-                if jsonString.contains(attractionId.uuidString.lowercased()) {
-                    print("Found favorite entry on server (string contains ID)")
-                    return true
-                }
-            }
-            
-            // Try the generic approach to parse data
-            if (data.count > 0) {
-                do {
-                    // Try to convert the data to a dictionary or array
-                    let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
-                    
-                    // Check if we have any results
-                    if let jsonArray = jsonObject as? [[String: Any]], !jsonArray.isEmpty {
-                        print("Found favorite entry on server (array of dictionaries)")
-                        return true
-                    } else if let jsonDict = jsonObject as? [String: Any], !jsonDict.isEmpty {
-                        print("Found favorite entry on server (dictionary)")
+                // Parse JSON as array
+                if let jsonArray = try? JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] {
+                    if jsonArray.isEmpty {
+                        print("No favorite entry found on server")
+                        return false
+                    } else {
+                        print("Found favorite entry on server")
                         return true
                     }
-                } catch {
-                    print("Error parsing favorite check response: \(error)")
-                    // Continue to the next approach
                 }
             }
             
-            print("No favorite entry found on server")
-            return false
+            return data.count > 2  // "[]" is 2 bytes, so anything larger has content
         } catch {
             print("Error checking favorite status: \(error)")
             return false
@@ -420,7 +414,6 @@ class AttractionViewModel: ObservableObject {
         return 0.0
     }
     
-    // Update the cached rating for an attraction
     func updateRating(for attractionId: UUID, with reviews: [Review]) {
         if reviews.isEmpty {
             attractionRatings[attractionId] = 0.0

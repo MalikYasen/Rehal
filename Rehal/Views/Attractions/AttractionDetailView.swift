@@ -10,6 +10,8 @@ struct AttractionDetailView: View {
     @State private var showAddReviewSheet = false
     @State private var isFavorite: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @State private var hasAppeared = false
+    @State private var appearanceCount = 0  // Track how many times the view has appeared
     @EnvironmentObject private var authViewModel: AuthViewModel
     @EnvironmentObject private var attractionViewModel: AttractionViewModel
     @EnvironmentObject private var reviewViewModel: ReviewViewModel
@@ -81,6 +83,23 @@ struct AttractionDetailView: View {
             .onAppear {
                 print("AttractionDetailView appeared for \(attraction.name)")
                 print("Attraction ID: \(attraction.id)")
+                
+                // Increment appearance counter
+                appearanceCount += 1
+                
+                // Only set hasAppeared to true after the first appearance to ensure stability
+                // Use a longer delay for the first appearance
+                if appearanceCount == 1 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        hasAppeared = true
+                        print("AttractionDetailView stable: hasAppeared set to true")
+                    }
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        hasAppeared = true
+                        print("AttractionDetailView subsequent appear: hasAppeared set to true")
+                    }
+                }
                 
                 Task {
                     if let userId = authViewModel.session?.user.id {
@@ -178,7 +197,13 @@ struct AttractionDetailView: View {
             .overlay(
                 HStack {
                     Button(action: {
-                        dismiss()
+                        // Only dismiss if the view has fully appeared
+                        if hasAppeared && appearanceCount >= 1 {
+                            print("Dismissing AttractionDetailView for \(attraction.name)")
+                            dismiss()
+                        } else {
+                            print("Attempted to dismiss but view is not ready yet")
+                        }
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.title2)
@@ -455,34 +480,53 @@ struct AttractionDetailView: View {
     
     /// Toggles the favorite status of an attraction
     private func toggleFavorite(userId: UUID) {
+        print("Toggle favorite button pressed for \(attraction.name)")
+        
+        // Immediately show UI change for better responsiveness
+        isFavorite.toggle()
+        
         Task {
-            if isFavorite {
-                print("Removing from favorites")
-                let success = await attractionViewModel.removeFromFavorites(
+            var success = false
+            
+            if !isFavorite {
+                // We just toggled to not favorite, so remove it
+                print("Removing from favorites: \(attraction.id)")
+                success = await attractionViewModel.removeFromFavorites(
                     attractionId: attraction.id,
                     userId: userId
                 )
                 
-                if success {
+                if !success {
+                    // Revert UI change if operation failed
                     await MainActor.run {
-                        isFavorite = false
-                    }
-                }
-            } else {
-                print("Adding to favorites")
-                let success = await attractionViewModel.addToFavorites(
-                    attractionId: attraction.id,
-                    userId: userId
-                )
-                
-                if success {
-                    await MainActor.run {
+                        print("Failed to remove from favorites, reverting UI")
                         isFavorite = true
                     }
-                    
-                    // Also refresh favorites collection to ensure UI consistency
-                    await attractionViewModel.fetchFavorites(for: userId)
+                } else {
+                    print("Successfully removed from favorites")
                 }
+            } else {
+                // We just toggled to favorite, so add it
+                print("Adding to favorites: \(attraction.id)")
+                success = await attractionViewModel.addToFavorites(
+                    attractionId: attraction.id,
+                    userId: userId
+                )
+                
+                if !success {
+                    // Revert UI change if operation failed
+                    await MainActor.run {
+                        print("Failed to add to favorites, reverting UI")
+                        isFavorite = false
+                    }
+                } else {
+                    print("Successfully added to favorites")
+                }
+            }
+            
+            // Always refresh the favorites collection to ensure UI consistency across the app
+            if success {
+                await attractionViewModel.fetchFavorites(for: userId)
             }
         }
     }
