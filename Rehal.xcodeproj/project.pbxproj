@@ -33,22 +33,9 @@
 		84DD22732DB01A5400309BF4 /* RehalUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RehalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		838075DB2DD73F670038B51E /* Exceptions for "Rehal" folder in "Rehal" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Views/Stats/StatsView.swift,
-			);
-			target = 84DD225B2DB01A5300309BF4 /* Rehal */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		84DD225E2DB01A5300309BF4 /* Rehal */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				838075DB2DD73F670038B51E /* Exceptions for "Rehal" folder in "Rehal" target */,
-			);
 			path = Rehal;
 			sourceTree = "<group>";
 		};

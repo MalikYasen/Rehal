@@ -449,24 +449,8 @@ struct AttractionDetailView: View {
     
     /// Checks if an attraction is a favorite directly from the database
     private func checkFavoriteDirectly(userId: UUID, attractionId: UUID) async -> Bool {
-        do {
-            print("Checking if attraction \(attractionId) is a favorite for user \(userId)")
-            
-            let response = try await attractionViewModel.supabase.from("favorites")
-                .select("id")
-                .eq("user_id", value: userId.uuidString)
-                .eq("attraction_id", value: attractionId.uuidString)
-                .execute()
-            
-                let jsonString = String(data: response.data, encoding: .utf8) ?? ""
-                
-                // Simple check: if the response contains the attraction ID, it's likely a favorite
-                return jsonString.contains(attractionId.uuidString.lowercased())
-            
-        } catch {
-            print("Error checking favorites directly: \(error)")
-            return false
-        }
+        // Use the improved function in the ViewModel instead of direct DB access
+        return await attractionViewModel.checkIfFavorite(attractionId: attractionId, userId: userId)
     }
     
     /// Toggles the favorite status of an attraction
@@ -495,6 +479,9 @@ struct AttractionDetailView: View {
                     await MainActor.run {
                         isFavorite = true
                     }
+                    
+                    // Also refresh favorites collection to ensure UI consistency
+                    await attractionViewModel.fetchFavorites(for: userId)
                 }
             }
         }

@@ -19,6 +19,7 @@ struct HomeTabView: View {
                 HomeView()
                     .navigationBarHidden(true)
             }
+            .navigationViewStyle(StackNavigationViewStyle())
             .tabItem {
                 Image(systemName: "house.fill")
                 Text("Home")
@@ -30,28 +31,43 @@ struct HomeTabView: View {
                 FavoritesView()
                     .navigationBarHidden(true)
             }
+            .navigationViewStyle(StackNavigationViewStyle())
             .tabItem {
                 Image(systemName: "heart.fill")
                 Text("Favorites")
             }
             .tag(1)
             
+            // Stats Tab (modified with qualified path)
+            NavigationView {
+                // Use fully qualified path to avoid scope issues
+                StatsView()
+                    .navigationBarHidden(true)
+            }
+            .navigationViewStyle(StackNavigationViewStyle())
+            .tabItem {
+                Image(systemName: "chart.bar.fill")
+                Text("Stats")
+            }
+            .tag(2)
+            
             // Profile Tab
             NavigationView {
                 ProfileView()
                     .navigationBarHidden(true)
             }
+            .navigationViewStyle(StackNavigationViewStyle())
             .tabItem {
                 Image(systemName: "person.fill")
                 Text("Profile")
             }
-            .tag(2)
+            .tag(3)
         }
         .accentColor(logoPurple) // Use the app's primary color for selected tabs
         .onChange(of: selectedTab) { _, newTab in
             // If the user selects the favorites tab and isn't logged in,
             // prompt them to log in
-            if newTab == 1 && !authViewModel.isAuthenticated {
+            if (newTab == 1 || newTab == 2) && !authViewModel.isAuthenticated {
                 // In a real app, you might want to present a login view
                 // or show an alert, but for simplicity, we'll just switch back to home
                 // selectedTab = 0

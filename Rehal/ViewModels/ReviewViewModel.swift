@@ -20,31 +20,52 @@ class ReviewViewModel: ObservableObject {
             }
         }
     }
-    
     func fetchReviews(for attractionId: UUID) async {
         isLoading = true
         error = nil
+        reviews = [] // Start with empty array
         
         do {
-            // Convert UUID to string for the query
-            let attractionIdString = attractionId.uuidString
-            
+            // Get raw reviews data
             let response = try await supabase.from("reviews")
-                .select("*, profiles(full_name)")
-                .eq("attraction_id", value: attractionIdString)
-                .order("created_at", ascending: false)
+                .select("*")
+                .eq("attraction_id", value: attractionId.uuidString)
                 .execute()
             
-            // Convert response to reviews using a safer approach
-            processReviewsResponse(response, attractionId: attractionId)
+            guard let jsonArray = response.data as? [[String: Any]] else {
+                print("Unexpected response format or empty data")
+                isLoading = false
+                return
+            }
             
-            isLoading = false
+            // We got valid data, try to decode it
+            do {
+                // Convert dictionary to JSON data
+                let jsonData = try JSONSerialization.data(withJSONObject: jsonArray)
+                
+                // Decode the JSON data
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                self.reviews = try decoder.decode([Review].self, from: jsonData)
+                
+                // Update user reviews cache
+                if let userId = currentUserId {
+                    for review in self.reviews where review.userId == userId {
+                        userReviews[review.attractionId] = review
+                    }
+                }
+            } catch {
+                self.error = "Failed to parse reviews: \(error.localizedDescription)"
+                print("Parse error details: \(error)")
+            }
         } catch {
-            isLoading = false
             self.error = "Failed to fetch reviews: \(error.localizedDescription)"
+            print("Fetch error details: \(error)")
         }
+        
+        isLoading = false
     }
-    
+       
     // A more generic approach to process reviews response - now doesn't use async
     private func processReviewsResponse(_ response: Any, attractionId: UUID) {
         guard let responseDict = response as? [String: Any],
@@ -171,70 +192,61 @@ class ReviewViewModel: ObservableObject {
         }
     }
 
+    // Fix for adding reviews
     func addReview(attractionId: UUID, userId: UUID, rating: Int, comment: String, images: [String]? = nil) async -> Bool {
         isLoading = true
         error = nil
         
-        // Check if user already has a review for this attraction
-        let existingReview = userReviews[attractionId]
-        
         do {
-            if let existingReview = existingReview {
-                // Update existing review - separate each field to avoid type confusion
-                try await supabase.from("reviews")
-                    .update(["rating": rating])
-                    .eq("id", value: existingReview.id.uuidString)
-                    .execute()
-                    
-                // Only update comment if not empty
-                if !comment.isEmpty {
-                    try await supabase.from("reviews")
-                        .update(["comment": comment])
-                        .eq("id", value: existingReview.id.uuidString)
-                        .execute()
-                } else {
-                    try await supabase.from("reviews")
-                        .update(["comment": nil as String?])
-                        .eq("id", value: existingReview.id.uuidString)
-                        .execute()
-                }
-                
-                // Only update images if provided
-                if let imageArray = images, !imageArray.isEmpty {
-                    try await supabase.from("reviews")
-                        .update(["images": imageArray])
-                        .eq("id", value: existingReview.id.uuidString)
-                        .execute()
-                } else {
-                    try await supabase.from("reviews")
-                        .update(["images": nil as [String]?])
-                        .eq("id", value: existingReview.id.uuidString)
-                        .execute()
-                }
-            } else {
-                // Create a properly typed input object for new review
-                let input = ReviewInput(
-                    attractionId: attractionId,
-                    userId: userId,
-                    rating: rating,
-                    comment: comment.isEmpty ? nil : comment,
-                    images: images?.isEmpty ?? true ? nil : images
-                )
-                
-                // Insert the review
-                try await supabase.from("reviews")
-                    .insert(input)
-                    .execute()
+            // Generate a UUID for the new review
+            let reviewId = UUID()
+            
+            // Create a dictionary with the correct structure
+            let reviewDict: [String: Any] = [
+                "id": reviewId.uuidString,
+                "attraction_id": attractionId.uuidString,
+                "user_id": userId.uuidString,
+                "rating": rating,
+                "comment": comment.replacingOccurrences(of: "\"", with: "\\\""),
+                "images": images ?? []
+            ]
+            
+            // Convert to proper JSON
+            let jsonData = try JSONSerialization.data(withJSONObject: reviewDict)
+            let jsonString = String(data: jsonData, encoding: .utf8)!
+            
+            // Use the proper insert method - this is critical
+            try await supabase.from("reviews")
+                .insert(jsonString)
+                .execute()
+            
+            // Create a local Review object to add it to our list immediately
+            let newReview = Review(
+                id: reviewId,
+                attractionId: attractionId,
+                userId: userId,
+                rating: rating,
+                comment: comment,
+                images: images,
+                createdAt: Date(),
+                userName: nil
+            )
+            
+            // Add to local cache
+            await MainActor.run {
+                reviews.append(newReview)
+                userReviews[attractionId] = newReview
             }
             
-            // Refresh reviews for this attraction
-            await fetchReviews(for: attractionId)
+            // We don't need to fetch reviews again since we've already added it locally
+            // This avoids potential issues with the fetch
             
             isLoading = false
             return true
         } catch {
             isLoading = false
             self.error = "Failed to add review: \(error.localizedDescription)"
+            print("Add review error details: \(error)")
             return false
         }
     }
