@@ -256,39 +256,84 @@ struct StatCard: View {
 struct TopAttractionRow: View {
     let attraction: Attraction
     
+    // Supabase storage base URL
+    private let storageBaseUrl = "https://vulhxauybqrvunqkazty.supabase.co/storage/v1/object/public/rehal-storage/attractions/"
+    
+    // Function to get proper URL for image
+    private func getFullImageUrl(_ imageUrl: String) -> URL? {
+        // If it's already a full URL that starts with http, use it directly
+        if imageUrl.starts(with: "http") {
+            return URL(string: imageUrl)
+        }
+        
+        // Otherwise, append the filename to the base URL
+        return URL(string: storageBaseUrl + imageUrl)
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // Thumbnail
             if let firstImage = attraction.images?.first, !firstImage.isEmpty {
-                AsyncImage(url: URL(string: firstImage)) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 60, height: 60)
-                            .cornerRadius(8)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 60, height: 60)
-                            .cornerRadius(8)
-                            .clipped()
-                    case .failure:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 60, height: 60)
-                            .cornerRadius(8)
-                            .overlay(
+                if let url = getFullImageUrl(firstImage) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 60, height: 60)
+                                .cornerRadius(8)
+                                .overlay(
+                                    ProgressView()
+                                )
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 60, height: 60)
+                                .cornerRadius(8)
+                                .clipped()
+                        case .failure(let error):
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 60, height: 60)
+                                .cornerRadius(8)
+                                .overlay(
+                                    VStack {
+                                        Image(systemName: "photo")
+                                            .foregroundColor(.gray)
+                                        Text("Error")
+                                            .font(.system(size: 8))
+                                            .foregroundColor(.gray)
+                                    }
+                                )
+                                .onAppear {
+                                    print("Failed to load top attraction image: \(url) - \(error.localizedDescription)")
+                                }
+                        @unknown default:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 60, height: 60)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .id(url) // Use id to force refresh when URL changes
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+                        .overlay(
+                            VStack {
                                 Image(systemName: "photo")
                                     .foregroundColor(.gray)
-                            )
-                    @unknown default:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 60, height: 60)
-                            .cornerRadius(8)
-                    }
+                                Text("Invalid URL")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.gray)
+                            }
+                        )
+                        .onAppear {
+                            print("Invalid top attraction image URL: \(firstImage)")
+                        }
                 }
             } else {
                 Rectangle()
@@ -296,8 +341,13 @@ struct TopAttractionRow: View {
                     .frame(width: 60, height: 60)
                     .cornerRadius(8)
                     .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.gray)
+                        VStack {
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
+                            Text("No image")
+                                .font(.system(size: 8))
+                                .foregroundColor(.gray)
+                        }
                     )
             }
             
@@ -336,5 +386,10 @@ struct TopAttractionRow: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(8)
+        .onAppear {
+            if let images = attraction.images {
+                print("Top attraction \(attraction.name) has \(images.count) images: \(images.first ?? "none")")
+            }
+        }
     }
 }

@@ -103,6 +103,7 @@ struct FavoritesView: View {
                         ForEach(attractionViewModel.favoriteAttractions) { attraction in
                             NavigationLink(destination: AttractionDetailView(attraction: attraction)) {
                                 HorizontalAttractionCard(attraction: attraction)
+                                    .environmentObject(attractionViewModel)
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
@@ -126,43 +127,86 @@ struct FavoritesView: View {
 
 struct HorizontalAttractionCard: View {
     let attraction: Attraction
+    @EnvironmentObject private var attractionViewModel: AttractionViewModel
+    
+    // Supabase storage base URL
+    private let storageBaseUrl = "https://vulhxauybqrvunqkazty.supabase.co/storage/v1/object/public/rehal-storage/attractions/"
+    
+    // Function to get proper URL for image
+    private func getFullImageUrl(_ imageUrl: String) -> URL? {
+        // If it's already a full URL that starts with http, use it directly
+        if imageUrl.starts(with: "http") {
+            return URL(string: imageUrl)
+        }
+        
+        // Otherwise, append the filename to the base URL
+        return URL(string: storageBaseUrl + imageUrl)
+    }
     
     var body: some View {
         HStack(spacing: 12) {
             // Image
             if let firstImage = attraction.images?.first, !firstImage.isEmpty {
-                AsyncImage(url: URL(string: firstImage)) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 100, height: 100)
-                            .cornerRadius(10)
-                            .overlay(
-                                ProgressView()
-                            )
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 100, height: 100)
-                            .cornerRadius(10)
-                            .clipped()
-                    case .failure:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 100, height: 100)
-                            .cornerRadius(10)
-                            .overlay(
+                if let url = getFullImageUrl(firstImage) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 100, height: 100)
+                                .cornerRadius(10)
+                                .overlay(
+                                    ProgressView()
+                                )
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 100, height: 100)
+                                .cornerRadius(10)
+                                .clipped()
+                        case .failure(let error):
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 100, height: 100)
+                                .cornerRadius(10)
+                                .overlay(
+                                    VStack {
+                                        Image(systemName: "photo")
+                                            .foregroundColor(.gray)
+                                        Text("Error")
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                )
+                            .onAppear {
+                                print("Image failed to load: \(url) - Error: \(error.localizedDescription)")
+                            }
+                        @unknown default:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 100, height: 100)
+                                .cornerRadius(10)
+                        }
+                    }
+                    .id(url) // Use id to force refresh when URL changes
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 100, height: 100)
+                        .cornerRadius(10)
+                        .overlay(
+                            VStack {
                                 Image(systemName: "photo")
                                     .foregroundColor(.gray)
-                            )
-                    @unknown default:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 100, height: 100)
-                            .cornerRadius(10)
-                    }
+                                Text("Invalid URL")
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                            }
+                        )
+                        .onAppear {
+                            print("Invalid image URL: \(firstImage)")
+                        }
                 }
             } else {
                 Rectangle()
@@ -170,8 +214,13 @@ struct HorizontalAttractionCard: View {
                     .frame(width: 100, height: 100)
                     .cornerRadius(10)
                     .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.gray)
+                        VStack {
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
+                            Text("No image")
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                        }
                     )
             }
             
@@ -196,21 +245,25 @@ struct HorizontalAttractionCard: View {
                         .font(.system(size: 12))
                         .foregroundColor(.yellow)
                     
-                    Text("4.5")  // Placeholder rating, would be calculated from reviews
+                    // Use attractionRatings dictionary or default to 0.0
+                    Text(String(format: "%.1f", attractionViewModel.attractionRatings[attraction.id] ?? 0.0))
                         .font(.caption)
                 }
             }
             
             Spacer()
-            
-            // Chevron
-            Image(systemName: "chevron.right")
-                .foregroundColor(.gray)
-                .padding(.trailing, 8)
         }
-        .padding(12)
+        .padding(10)
         .background(Color(.systemBackground))
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .onAppear {
+            // Debug logging
+            if let images = attraction.images {
+                print("Attraction \(attraction.name) has \(images.count) images: \(images.first ?? "none")")
+            } else {
+                print("Attraction \(attraction.name) has no images")
+            }
+        }
     }
 }

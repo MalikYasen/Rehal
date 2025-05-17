@@ -112,17 +112,16 @@ class AttractionViewModel: ObservableObject {
         print("Fetching favorites for user: \(userId)")
         
         do {
-            // First get the user's favorites
-            let favoritesResponse = try await supabase.from("favorites")
-                .select("attraction_id")
+            // Get the user's favorite attraction IDs
+            let response = try await supabase.from("favorites")
+                .select()
                 .eq("user_id", value: userId.uuidString)
                 .execute()
             
             // Get the data from response
-            let data = favoritesResponse.data
+            let data = response.data
             print("Favorites data size: \(data.count) bytes")
             
-            // Try to parse directly
             do {
                 // Convert the data to a structured format we can work with
                 if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
@@ -132,14 +131,19 @@ class AttractionViewModel: ObservableObject {
                     
                     // If we have favorite attraction IDs, fetch the actual attractions
                     if !attractionIds.isEmpty {
-                        // Fetch attractions in one batch
+                        // Fetch attractions in one batch, explicitly select all fields including images
                         let attractionsResponse = try await supabase.from("attractions")
-                            .select()
+                            .select("id, name, description, category, subcategory, address, latitude, longitude, images, price_level, created_at, updated_at")
                             .in("id", values: attractionIds)
                             .execute()
                         
                         // Get the data from response
                         let attractionsData = attractionsResponse.data
+                        print("Favorites attractions data size: \(attractionsData.count) bytes")
+                        
+                        if let jsonString = String(data: attractionsData, encoding: .utf8) {
+                            print("Favorites JSON (first 100 chars): \(jsonString.prefix(100))")
+                        }
                         
                         // Try to decode the attractions data
                         do {
@@ -147,8 +151,13 @@ class AttractionViewModel: ObservableObject {
                             decoder.dateDecodingStrategy = .iso8601
                             
                             let favorites = try decoder.decode([Attraction].self, from: attractionsData)
-                            self.favoriteAttractions = favorites
+                            await MainActor.run {
+                                self.favoriteAttractions = favorites
+                            }
                             print("Loaded \(favorites.count) favorite attractions")
+                            for (i, fav) in favorites.prefix(2).enumerated() {
+                                print("Favorite \(i): \(fav.name), images: \(fav.images?.count ?? 0)")
+                            }
                         } catch {
                             print("Error decoding favorites: \(error)")
                             
@@ -160,28 +169,51 @@ class AttractionViewModel: ObservableObject {
                                 
                                 for (index, json) in jsonArray.enumerated() {
                                     do {
+                                        // Print first attraction for debugging
+                                        if index == 0 {
+                                            print("First favorite attraction JSON: \(json)")
+                                            if let images = json["images"] {
+                                                print("Images found: \(images)")
+                                            } else {
+                                                print("No images field found!")
+                                            }
+                                        }
+                                        
                                         let jsonData = try JSONSerialization.data(withJSONObject: json)
                                         let attraction = try fallbackDecoder.decode(Attraction.self, from: jsonData)
                                         loadedFavorites.append(attraction)
+                                        
+                                        // Print debug info for first attraction
+                                        if index == 0 {
+                                            print("Decoded attraction: \(attraction.name), images: \(attraction.images?.count ?? 0)")
+                                        }
                                     } catch {
                                         print("Error decoding favorite attraction at index \(index): \(error)")
                                     }
                                 }
                                 
-                                self.favoriteAttractions = loadedFavorites
+                                await MainActor.run {
+                                    self.favoriteAttractions = loadedFavorites
+                                }
                                 print("Manually processed \(loadedFavorites.count) favorite attractions")
                             }
                         }
                     } else {
-                        self.favoriteAttractions = []
+                        await MainActor.run {
+                            self.favoriteAttractions = []
+                        }
                     }
                 } else {
                     print("Failed to parse favorites data as JSON array")
-                    self.favoriteAttractions = []
+                    await MainActor.run {
+                        self.favoriteAttractions = []
+                    }
                 }
             } catch {
                 print("Error processing favorites: \(error)")
-                self.favoriteAttractions = []
+                await MainActor.run {
+                    self.favoriteAttractions = []
+                }
             }
             
             isLoading = false
