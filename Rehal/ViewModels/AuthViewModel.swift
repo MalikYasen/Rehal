@@ -7,6 +7,7 @@ class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var avatarUrl: String?
+    @Published var fullName: String?
     
     let supabase: SupabaseClient
     
@@ -52,6 +53,9 @@ class AuthViewModel: ObservableObject {
                 if let json = try JSONSerialization.jsonObject(with: response.data) as? [String: Any] {
                     if let avatar = json["avatar_url"] as? String {
                         self.avatarUrl = avatar
+                    }
+                    if let name = json["full_name"] as? String {
+                        self.fullName = name
                     }
                 }
             } catch {
@@ -134,6 +138,7 @@ class AuthViewModel: ObservableObject {
             try await supabase.auth.signOut()
             session = nil
             avatarUrl = nil
+            fullName = nil
         } catch {
             self.error = "Sign out failed: \(error.localizedDescription)"
         }
@@ -155,6 +160,9 @@ class AuthViewModel: ObservableObject {
     }
     
     var displayName: String {
+        if let name = fullName, !name.isEmpty {
+            return name
+        }
         if let user = session?.user,
            let metadata = user.userMetadata as? [String: Any],
            let fullName = metadata["full_name"] as? String {

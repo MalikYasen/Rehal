@@ -285,6 +285,11 @@ struct EditProfileView: View {
         // Also update the user metadata in Auth
         let userMetadata = ["full_name": AnyJSON.string(fullName)]
         try await authViewModel.supabase.auth.update(user: UserAttributes(data: userMetadata))
+        
+        // Update the fullName in the AuthViewModel to ensure it displays correctly
+        await MainActor.run {
+            authViewModel.fullName = fullName
+        }
     }
     
     private func uploadProfileImage(userId: UUID, image: UIImage) async throws {
