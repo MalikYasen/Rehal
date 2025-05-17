@@ -5,8 +5,10 @@ struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var fullName: String = ""
+    @State private var initialFullName: String = ""  // Store initial value to compare
     @State private var showingImagePicker = false
     @State private var profileImage: UIImage?
+    @State private var initialProfileImageSet = false  // Track if profile image was initially set
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingSuccessToast = false
@@ -80,8 +82,9 @@ struct EditProfileView: View {
                             .padding()
                             .background(Color(.systemGray6))
                             .cornerRadius(10)
-                            .onChange(of: fullName) { _, _ in
-                                formChanged = true
+                            .onChange(of: fullName) { _, newValue in
+                                // Only set formChanged if value actually differs from initial
+                                formChanged = newValue != initialFullName
                             }
                     }
                     
@@ -142,6 +145,7 @@ struct EditProfileView: View {
         .navigationBarBackButtonHidden(true)
         .navigationBarItems(
             leading: Button(action: {
+                // Only show discard alert if there are actual changes
                 if formChanged {
                     showingDiscardAlert = true
                 } else {
@@ -157,12 +161,23 @@ struct EditProfileView: View {
         )
         .onAppear {
             // Initialize form with current values
+            initialFullName = authViewModel.displayName
             fullName = authViewModel.displayName
+            
+            // Load profile image if available
+            if let avatarUrlString = authViewModel.avatarUrl {
+                loadProfileImage(from: avatarUrlString)
+            }
         }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(image: $profileImage)
-                .onChange(of: profileImage) { _, _ in
-                    formChanged = true
+                .onChange(of: profileImage) { _, newValue in
+                    // Only mark as changed if the image actually changed from initial state
+                    if initialProfileImageSet {
+                        formChanged = true
+                    } else if newValue != nil {
+                        formChanged = true
+                    }
                 }
         }
         .alert(isPresented: $showingDiscardAlert) {
@@ -170,7 +185,10 @@ struct EditProfileView: View {
                 title: Text("Discard Changes?"),
                 message: Text("You have unsaved changes. Are you sure you want to go back?"),
                 primaryButton: .destructive(Text("Discard")) {
-                    dismiss()
+                    formChanged = false  // Reset flag before dismissing
+                    DispatchQueue.main.async {
+                        dismiss()  // Use main thread to ensure proper dismissal
+                    }
                 },
                 secondaryButton: .cancel()
             )
@@ -199,6 +217,20 @@ struct EditProfileView: View {
         )
     }
     
+    // Helper function to load profile image from URL
+    private func loadProfileImage(from urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data = data, let image = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.profileImage = image
+                    self.initialProfileImageSet = true  // Mark that we loaded an initial image
+                }
+            }
+        }.resume()
+    }
+    
     private func saveProfile() {
         isLoading = true
         errorMessage = nil
@@ -220,6 +252,11 @@ struct EditProfileView: View {
                 await MainActor.run {
                     isLoading = false
                     formChanged = false
+                    
+                    // Update the stored initial values to match current values
+                    initialFullName = fullName
+                    initialProfileImageSet = (profileImage != nil)
+                    
                     showingSuccessToast = true
                     
                     // Hide the toast after 3 seconds
@@ -279,11 +316,18 @@ struct EditProfileView: View {
             .getPublicURL(path: fileName)
         
         // Update the avatar_url in the profiles table
+        let avatarUrl = publicURLResponse.absoluteString
+        
         try await authViewModel.supabase.from("profiles")
             .update([
-                "avatar_url": publicURLResponse.absoluteString
+                "avatar_url": avatarUrl
             ])
             .eq("id", value: userId.uuidString)
             .execute()
+            
+        // Update the avatarUrl in the view model as well
+        await MainActor.run {
+            authViewModel.avatarUrl = avatarUrl
+        }
     }
 }

@@ -9,7 +9,7 @@ struct AttractionDetailView: View {
     @State private var showDirections = false
     @State private var showAddReviewSheet = false
     @State private var isFavorite: Bool = false
-    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authViewModel: AuthViewModel
     @EnvironmentObject private var attractionViewModel: AttractionViewModel
     @EnvironmentObject private var reviewViewModel: ReviewViewModel
@@ -178,7 +178,7 @@ struct AttractionDetailView: View {
             .overlay(
                 HStack {
                     Button(action: {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.title2)

@@ -6,6 +6,7 @@ class AuthViewModel: ObservableObject {
     @Published var session: Session?
     @Published var isLoading = false
     @Published var error: String?
+    @Published var avatarUrl: String?
     
     let supabase: SupabaseClient
     
@@ -26,9 +27,38 @@ class AuthViewModel: ObservableObject {
         do {
             // Try to get the current session
             session = try await supabase.auth.session
+            
+            // If session exists, fetch the user profile including the avatar URL
+            if session != nil {
+                await fetchUserProfile()
+            }
         } catch {
             session = nil
             print("Error checking session: \(error)")
+        }
+    }
+    
+    private func fetchUserProfile() async {
+        guard let userId = session?.user.id else { return }
+        
+        do {
+            let response = try await supabase.from("profiles")
+                .select("avatar_url, full_name")
+                .eq("id", value: userId.uuidString)
+                .single()
+                .execute()
+            
+            do {
+                if let json = try JSONSerialization.jsonObject(with: response.data) as? [String: Any] {
+                    if let avatar = json["avatar_url"] as? String {
+                        self.avatarUrl = avatar
+                    }
+                }
+            } catch {
+                print("Error parsing profile data: \(error)")
+            }
+        } catch {
+            print("Error fetching user profile: \(error)")
         }
     }
     
@@ -88,6 +118,10 @@ class AuthViewModel: ObservableObject {
             
             // Update the session directly
             self.session = session
+            
+            // Fetch user profile after successful login
+            await fetchUserProfile()
+            
             isLoading = false
         } catch {
             isLoading = false
@@ -99,6 +133,7 @@ class AuthViewModel: ObservableObject {
         do {
             try await supabase.auth.signOut()
             session = nil
+            avatarUrl = nil
         } catch {
             self.error = "Sign out failed: \(error.localizedDescription)"
         }

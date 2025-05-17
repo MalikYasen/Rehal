@@ -38,9 +38,8 @@ struct HomeTabView: View {
             }
             .tag(1)
             
-            // Stats Tab (modified with qualified path)
+            // Stats Tab
             NavigationView {
-                // Use fully qualified path to avoid scope issues
                 StatsView()
                     .navigationBarHidden(true)
             }
@@ -63,14 +62,19 @@ struct HomeTabView: View {
             }
             .tag(3)
         }
-        .accentColor(logoPurple) // Use the app's primary color for selected tabs
-        .onChange(of: selectedTab) { _, newTab in
-            // If the user selects the favorites tab and isn't logged in,
-            // prompt them to log in
-            if (newTab == 1 || newTab == 2) && !authViewModel.isAuthenticated {
-                // In a real app, you might want to present a login view
-                // or show an alert, but for simplicity, we'll just switch back to home
-                // selectedTab = 0
+        .accentColor(logoPurple)
+        // Make sure NavigationView uses stack style for better navigation performance
+        .onAppear {
+            // Fix for TabBar appearance
+            let appearance = UITabBarAppearance()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            appearance.backgroundColor = UIColor(Color(.systemBackground).opacity(0.2))
+            
+            // Use this appearance when scrolling behind the TabBar
+            UITabBar.appearance().standardAppearance = appearance
+            // Use this appearance when scrolled all the way up
+            if #available(iOS 15.0, *) {
+                UITabBar.appearance().scrollEdgeAppearance = appearance
             }
         }
     }
