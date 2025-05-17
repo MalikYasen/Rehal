@@ -353,7 +353,7 @@ struct AttractionDetailView: View {
             } else {
                 // Display top 2 reviews
                 ForEach(reviewViewModel.reviews.prefix(2)) { review in
-                    ReviewRow(review: review)
+                    ReviewRow(reviewId: review.id, reviewViewModel: reviewViewModel)
                 }
             }
             
@@ -520,7 +520,19 @@ struct AttractionDetailView: View {
 
 // Review row component
 struct ReviewRow: View {
-    let review: Review
+    // Use a binding instead of state to keep it updated
+    let reviewId: UUID
+    @ObservedObject var reviewViewModel: ReviewViewModel
+    
+    init(reviewId: UUID, reviewViewModel: ReviewViewModel) {
+        self.reviewId = reviewId
+        self.reviewViewModel = reviewViewModel
+    }
+    
+    // Computed property to get the current review
+    private var review: Review? {
+        reviewViewModel.reviews.first(where: { $0.id == reviewId })
+    }
     
     // Supabase storage base URL
     private let storageBaseUrl = "https://vulhxauybqrvunqkazty.supabase.co/storage/v1/object/public/rehal-storage/reviews/"
@@ -538,113 +550,86 @@ struct ReviewRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // User image (placeholder)
-                Circle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .foregroundColor(.gray)
-                    )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(review.userName ?? "User")
-                        .font(.headline)
+            if let review = review {
+                HStack {
+                    // User image (placeholder)
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.gray)
+                        )
                     
-                    HStack {
-                        // Star rating
-                        ForEach(1...5, id: \.self) { star in
-                            Image(systemName: star <= review.rating ? "star.fill" : "star")
-                                .foregroundColor(.yellow)
-                                .font(.system(size: 12))
+                    VStack(alignment: .leading, spacing: 4) {
+                        // User name with debugging info
+                        if let userName = review.userName {
+                            Text(userName)
+                                .font(.headline)
+                                .id("username-\(review.id)") // Force refresh when username changes
+                        } else {
+                            Text("User")
+                                .font(.headline)
+                                .foregroundColor(.gray)
                         }
                         
-                        Spacer()
-                        
-                        // Date
-                        Text(review.createdAt, style: .date)
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                        HStack {
+                            // Star rating
+                            ForEach(1...5, id: \.self) { star in
+                                Image(systemName: star <= review.rating ? "star.fill" : "star")
+                                    .foregroundColor(.yellow)
+                                    .font(.system(size: 12))
+                            }
+                            
+                            Text(review.createdAt, style: .date)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
                     }
                 }
-            }
-            
-            if let comment = review.comment {
-                Text(comment)
-                    .font(.subheadline)
-            }
-            
-            // Review images if any
-            if let images = review.images, !images.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(0..<images.count, id: \.self) { index in
-                            if let url = getFullImageUrl(images[index]) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                            .frame(width: 80, height: 80)
-                                            .cornerRadius(8)
-                                            .overlay(ProgressView())
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 80, height: 80)
-                                            .cornerRadius(8)
-                                            .clipped()
-                                    case .failure(let error):
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                            .frame(width: 80, height: 80)
-                                            .cornerRadius(8)
-                                            .overlay(
-                                                VStack {
-                                                    Image(systemName: "photo")
-                                                        .foregroundColor(.gray)
-                                                    Text("Error")
-                                                        .font(.system(size: 8))
-                                                        .foregroundColor(.gray)
-                                                }
-                                            )
-                                            .onAppear {
-                                                print("Failed to load review image: \(url) - \(error.localizedDescription)")
-                                            }
-                                    @unknown default:
-                                        Rectangle()
-                                            .fill(Color.gray.opacity(0.3))
-                                            .frame(width: 80, height: 80)
-                                            .cornerRadius(8)
-                                    }
-                                }
-                                .id(url) // Use id to force refresh when URL changes
-                            } else {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 80, height: 80)
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        VStack {
+                
+                if let comment = review.comment, !comment.isEmpty {
+                    Text(comment)
+                        .font(.body)
+                        .padding(.top, 4)
+                }
+                
+                // Display review images if available
+                if let images = review.images, !images.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(images, id: \.self) { imageUrl in
+                                if let url = getFullImageUrl(imageUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 120, height: 80)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 120, height: 80)
+                                                .clipped()
+                                                .cornerRadius(8)
+                                        case .failure:
                                             Image(systemName: "photo")
                                                 .foregroundColor(.gray)
-                                            Text("Invalid URL")
-                                                .font(.system(size: 8))
-                                                .foregroundColor(.gray)
+                                                .frame(width: 120, height: 80)
+                                        @unknown default:
+                                            EmptyView()
                                         }
-                                    )
-                                    .onAppear {
-                                        print("Invalid review image URL: \(images[index])")
                                     }
+                                }
                             }
                         }
+                        .padding(.top, 8)
                     }
                 }
+            } else {
+                Text("Review not found")
+                    .foregroundColor(.gray)
             }
-            
-            Divider()
         }
     }
 }
@@ -687,9 +672,9 @@ struct AllReviewsView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding()
                 } else {
+                    // Force view to update when reviews change
                     ForEach(reviewViewModel.reviews) { review in
-                        ReviewRow(review: review)
-                            .padding(.horizontal)
+                        ReviewRow(reviewId: review.id, reviewViewModel: reviewViewModel)
                     }
                 }
             }

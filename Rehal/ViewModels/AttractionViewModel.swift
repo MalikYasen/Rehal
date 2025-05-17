@@ -37,6 +37,9 @@ class AttractionViewModel: ObservableObject {
             // Process the response with the generic method
             processResponse(response)
             
+            // Preload review counts for all attractions
+            await preloadReviewCounts()
+            
             isLoading = false
         } catch {
             isLoading = false
@@ -434,6 +437,56 @@ class AttractionViewModel: ObservableObject {
     // Get average rating for an attraction
     func averageRating(for attractionId: UUID) -> Double {
         return attractionRatings[attractionId] ?? 0.0
+    }
+    
+    // Preload review counts for all attractions
+    func preloadReviewCounts() async {
+        print("Preloading review counts for all attractions")
+        
+        do {
+            // Query to get review counts by attraction_id
+            let response = try await supabase.from("reviews")
+                .select("attraction_id, rating")
+                .execute()
+            
+            print("Review counts response received")
+            
+            if let data = response.data as? Data {
+                do {
+                    if let reviews = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] {
+                        print("Processing \(reviews.count) reviews for rating calculations")
+                        
+                        // Group reviews by attraction_id
+                        var reviewsByAttraction: [UUID: [Int]] = [:]
+                        
+                        for review in reviews {
+                            if let attractionIdStr = review["attraction_id"] as? String,
+                               let attractionId = UUID(uuidString: attractionIdStr),
+                               let rating = review["rating"] as? Int {
+                                if reviewsByAttraction[attractionId] == nil {
+                                    reviewsByAttraction[attractionId] = []
+                                }
+                                reviewsByAttraction[attractionId]?.append(rating)
+                            }
+                        }
+                        
+                        // Calculate average ratings
+                        for (attractionId, ratings) in reviewsByAttraction {
+                            let totalRating = ratings.reduce(0, +)
+                            let average = Double(totalRating) / Double(ratings.count)
+                            attractionRatings[attractionId] = average
+                            print("Calculated rating for \(attractionId): \(average) from \(ratings.count) reviews")
+                        }
+                        
+                        print("Preloaded ratings for \(reviewsByAttraction.count) attractions")
+                    }
+                } catch {
+                    print("Error parsing review counts: \(error)")
+                }
+            }
+        } catch {
+            print("Error fetching review counts: \(error)")
+        }
     }
     
     // Changed to a more generic method without specific type annotation

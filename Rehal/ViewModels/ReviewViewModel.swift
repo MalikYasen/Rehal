@@ -37,7 +37,7 @@ class ReviewViewModel: ObservableObject {
         do {
             print("Fetching reviews for attraction: \(attractionId.uuidString)")
             
-            // Get raw reviews data
+            // Get raw reviews data - no join since relationship doesn't exist
             let response = try await supabase.from("reviews")
                 .select("*")
                 .eq("attraction_id", value: attractionId.uuidString)
@@ -147,7 +147,7 @@ class ReviewViewModel: ObservableObject {
                                 comment: comment,
                                 images: images,
                                 createdAt: createdAt,
-                                userName: nil // We'll fetch user names separately if needed
+                                userName: nil // We'll fetch user names separately
                             )
                             
                             fetchedReviews.append(review)
@@ -168,6 +168,11 @@ class ReviewViewModel: ObservableObject {
                         
                         // Update attraction rating
                         self.attractionViewModel?.updateRating(for: attractionId, with: fetchedReviews)
+                        
+                        // Fetch user names for the reviews
+                        Task {
+                            await self.fetchUserNames()
+                        }
                     }
                 } catch {
                     print("JSON decoding failed: \(error)")
@@ -258,7 +263,7 @@ class ReviewViewModel: ObservableObject {
                                 comment: comment,
                                 images: images,
                                 createdAt: createdAt,
-                                userName: nil // We'll fetch user names separately if needed
+                                userName: nil // We'll fetch user names separately
                             )
                             
                             fetchedReviews.append(review)
@@ -279,6 +284,11 @@ class ReviewViewModel: ObservableObject {
                         
                         // Update attraction rating
                         self.attractionViewModel?.updateRating(for: attractionId, with: fetchedReviews)
+                        
+                        // Fetch user names for the reviews
+                        Task {
+                            await self.fetchUserNames()
+                        }
                     }
                 } else {
                     print("Unexpected response format: \(String(describing: responseData))")
@@ -298,6 +308,70 @@ class ReviewViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    // Update a single review with user info
+    func updateReview(with userId: UUID, userName: String) {
+        // Update on the main thread since we're modifying published properties
+        Task { @MainActor in
+            // Find and update all reviews by this user
+            self.reviews = self.reviews.map { review in
+                if review.userId == userId {
+                    var updatedReview = review
+                    updatedReview.userName = userName
+                    return updatedReview
+                }
+                return review
+            }
+            
+            // Also update user reviews map
+            for (attractionId, review) in userReviews {
+                if review.userId == userId {
+                    var updatedReview = review
+                    updatedReview.userName = userName
+                    userReviews[attractionId] = updatedReview
+                }
+            }
+        }
+    }
+    
+    // Fetch user names for reviews
+    func fetchUserNames() async {
+        guard !reviews.isEmpty else { return }
+        
+        // Create a unique set of user IDs
+        let userIds = Set(reviews.map { $0.userId.uuidString })
+        print("Fetching user names for \(userIds.count) users: \(userIds)")
+
+        for userId in userIds {
+            do {
+                print("Fetching profile for user: \(userId)")
+                let response = try await supabase.from("profiles")
+                    .select("id, full_name")
+                    .eq("id", value: userId)
+                    .execute()
+                
+                if let data = response.data as? Data {
+                    do {
+                        if let profiles = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
+                           let profile = profiles.first,
+                           let idString = profile["id"] as? String,
+                           let profileId = UUID(uuidString: idString),
+                           let fullName = profile["full_name"] as? String {
+                            
+                            print("Got profile name for \(profileId): \(fullName)")
+                            
+                            // Update reviews with this user's name immediately
+                            updateReview(with: profileId, userName: fullName)
+                        }
+                    } catch {
+                        print("Error parsing profile: \(error)")
+                    }
+                }
+            } catch {
+                print("Error fetching profile for \(userId): \(error)")
+            }
+        }
     }
     
     // A more generic approach to process reviews response - now doesn't use async
@@ -427,7 +501,7 @@ class ReviewViewModel: ObservableObject {
             self.images = images ?? []
         }
     }
-
+    
     // Fix for adding reviews
     func addReview(attractionId: UUID, userId: UUID, rating: Int, comment: String, images: [String]? = nil) async -> Bool {
         isLoading = true
